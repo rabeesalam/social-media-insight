@@ -101,7 +101,10 @@ export default async function AvatarDetailPage({
     return true
   })
 
-  const platformsToShow = platformFilter ? [platformFilter] : ALL_PLATFORMS
+  // Always show every platform card, even while filtered — otherwise switching to another
+  // connected platform means hitting "back" first, which defeats the point of the cards being
+  // links in the first place.
+  const platformsToShow = ALL_PLATFORMS
   const basePath = `/dashboard/avatars/${id}`
 
   function pageHref(overrides: { platform?: string | null; period?: string }) {
