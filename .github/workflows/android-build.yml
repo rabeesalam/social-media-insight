@@ -1,0 +1,58 @@
+name: Android Build
+
+# Local Gradle builds are blocked in the Claude Code dev environment on Windows (a known
+# loopback-socket sandboxing bug — see docs/troubleshooting.md), so the APK is built here instead,
+# on GitHub's Linux runners.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      # SUPABASE_ANON_KEY is not a secret (it grants nothing without RLS/device-secret checks
+      # passing — see docs/decisions/0002-secret-boundary-and-auth-model.md), so it's committed
+      # here directly rather than routed through a GitHub Actions secret. Platform client IDs are
+      # public identifiers too (a client_secret would be the sensitive half, and that never goes
+      # near the Android app at all — it lives only in Supabase Edge Function secrets). Update the
+      # blank *_CLIENT_ID/_CLIENT_KEY values below as each platform's developer app is created.
+      - name: Write local.properties
+        run: |
+          cat > local.properties <<EOF
+          sdk.dir=${ANDROID_HOME}
+          SUPABASE_URL=https://ypnftmiulzrrwpbgdgwy.supabase.co
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwbmZ0bWl1bHpycndwYmdkZ3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NTIwMTEsImV4cCI6MjEwMzIyODAxMX0.12DArVYfbepk52bIXAQTPTmjGQN6KrTG_7hasFjJQjI
+          INSTAGRAM_CLIENT_ID=
+          TIKTOK_CLIENT_KEY=
+          YOUTUBE_CLIENT_ID=
+          FACEBOOK_CLIENT_ID=
+          THREADS_CLIENT_ID=
+          X_CLIENT_ID=
+          EOF
+
+      - name: Build debug APK
+        run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: social-insight-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
