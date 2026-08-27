@@ -118,7 +118,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val byPlatform = Platform.entries.associateWith { platform ->
                     all.firstOrNull { it.avatar_id == avatarId && it.platform == platform.id }
                 }
-                _connectState.value = _connectState.value?.copy(connections = byPlatform)
+                // Bug fixed here: this previously left `busyPlatform` untouched, so a *successful*
+                // connection (the only path that calls refreshConnections after startConnect) never
+                // cleared the spinner — the OAuth flow was completing fine, the UI just never found
+                // out. Any call to refreshConnections means we're not mid-launch anymore, so always
+                // clear it here rather than relying on every caller to remember to.
+                _connectState.value = _connectState.value?.copy(connections = byPlatform, busyPlatform = null)
             }
         }
     }
