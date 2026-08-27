@@ -9,6 +9,14 @@ export const PERIOD_LABEL: Record<Period, string> = {
   all: 'All-time',
 }
 
+// Kept out of any component body — react-hooks/purity flags direct Date.now() calls during
+// render, but a plain module function called from render is fine.
+export function periodCutoffMs(period: Period): number | null {
+  if (period === 'weekly') return Date.now() - 7 * 24 * 60 * 60 * 1000
+  if (period === 'monthly') return Date.now() - 30 * 24 * 60 * 60 * 1000
+  return null
+}
+
 export interface MetricTotals {
   videoCount: number
   views: number
@@ -64,7 +72,7 @@ interface SnapshotRow {
   comments: number | null
   shares: number | null
   saves: number | null
-  platform_content: { platform: PlatformName; platform_connection_id: string } | null
+  platform_content: { platform: PlatformName; platform_connection_id: string; published_at: string | null } | null
 }
 
 interface AccountSnapshotRow {
@@ -81,28 +89,33 @@ export async function getInsights(supabase: SupabaseClient, period: Period): Pro
 
   const connectionById = new Map((connections ?? []).map((c) => [c.id, c]))
 
-  let snapshotsQuery = supabase
-    .from('metric_snapshots')
-    .select('platform_content_id, captured_at, views, likes, comments, shares, saves, platform_content!inner(platform, platform_connection_id)')
-
-  if (period === 'weekly') {
-    snapshotsQuery = snapshotsQuery.gte('captured_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-  } else if (period === 'monthly') {
-    snapshotsQuery = snapshotsQuery.gte('captured_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-  }
-
+  // No captured_at filter here on purpose: captured_at is when we last synced a video, not when
+  // it was published, and a period tab is about "videos from this period" — filtering by sync
+  // time would make weekly/monthly/all-time collapse to the same numbers right after a sync pass
+  // touches everything. We always take the latest known snapshot per video, then decide which
+  // videos belong to the period by their published_at below.
   const [{ data: snapshots }, { data: accountSnapshots }] = await Promise.all([
-    snapshotsQuery.returns<SnapshotRow[]>(),
+    supabase
+      .from('metric_snapshots')
+      .select('platform_content_id, captured_at, views, likes, comments, shares, saves, platform_content!inner(platform, platform_connection_id, published_at)')
+      .returns<SnapshotRow[]>(),
     supabase
       .from('account_metric_snapshots')
       .select('platform_connection_id, captured_at, followers')
       .returns<AccountSnapshotRow[]>(),
   ])
 
-  // Reduce to the latest reading per content within the window (never sum multiple snapshots of
-  // the same video — that would double-count, not track growth).
+  const periodCutoff = periodCutoffMs(period)
+
+  // Reduce to the latest reading per video (never sum multiple snapshots of the same video — that
+  // would double-count, not track growth), then drop videos published before the period cutoff.
   const latestPerContent = new Map<string, SnapshotRow>()
   for (const row of snapshots ?? []) {
+    const pc = row.platform_content
+    if (periodCutoff !== null) {
+      if (!pc?.published_at) continue
+      if (new Date(pc.published_at).getTime() < periodCutoff) continue
+    }
     const existing = latestPerContent.get(row.platform_content_id)
     if (!existing || row.captured_at > existing.captured_at) latestPerContent.set(row.platform_content_id, row)
   }

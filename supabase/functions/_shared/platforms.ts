@@ -20,6 +20,10 @@ export interface PlatformExchangeConfig {
   clientSecretEnv: string; // empty string value is valid for public/PKCE-only clients (e.g. YouTube)
   usesPkce: boolean;
   authStyle: "body" | "basic_auth_header"; // how client_id/secret are sent to the token endpoint
+  /** Param name the token endpoint expects for the client identifier. Defaults to "client_id" —
+   * TikTok is the one platform that calls it "client_key" instead, in both the authorize URL
+   * (see OAuthLauncher.kt) and the token endpoint. */
+  clientIdParam?: string;
   fetchAccount: (accessToken: string) => Promise<AccountInfo>;
   /**
    * Meta's platforms (Threads/Instagram/Facebook) don't hand out a `refresh_token` at all — the
@@ -50,6 +54,7 @@ export const PLATFORM_CONFIGS: Record<string, PlatformExchangeConfig> = {
     clientSecretEnv: "TIKTOK_CLIENT_SECRET",
     usesPkce: true,
     authStyle: "body",
+    clientIdParam: "client_key",
     fetchAccount: async (accessToken) => {
       const res = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,username", {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -97,7 +102,7 @@ export const PLATFORM_CONFIGS: Record<string, PlatformExchangeConfig> = {
       });
       const data = await jsonOrThrow(res, "YouTube token refresh");
       // Google does not re-issue refresh_token on refresh — the original one keeps working.
-      return { access_token: data.access_token, refresh_token, expires_in: data.expires_in };
+      return { access_token: data.access_token, refresh_token: refreshToken, expires_in: data.expires_in };
     },
   },
   threads: {
@@ -231,13 +236,14 @@ export async function exchangeCodeForToken(
   if (config.usesPkce) body.set("code_verifier", codeVerifier);
 
   const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+  const clientIdParam = config.clientIdParam ?? "client_id";
 
   if (config.authStyle === "basic_auth_header") {
     if (!clientSecret) throw new Error(`${config.clientSecretEnv} secret is not set (required for X's confidential client auth)`);
     headers.Authorization = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
-    body.set("client_id", clientId);
+    body.set(clientIdParam, clientId);
   } else {
-    body.set("client_id", clientId);
+    body.set(clientIdParam, clientId);
     if (clientSecret) body.set("client_secret", clientSecret);
   }
 

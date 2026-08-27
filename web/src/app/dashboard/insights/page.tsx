@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getInsights, PERIOD_LABEL, type Period, type MetricTotals } from '@/lib/insights'
-import { PLATFORM_DISPLAY_NAME } from '@/lib/platforms'
+import { PLATFORM_DISPLAY_NAME, PLATFORM_SHORT_NAME } from '@/lib/platforms'
 
 const PERIODS: Period[] = ['weekly', 'monthly', 'all']
 
@@ -76,29 +76,24 @@ export default async function InsightsPage({
         <div className="space-y-10">
           {insights.map((avatar) => (
             <div key={avatar.avatarId}>
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <Link href={`/dashboard/avatars/${avatar.avatarId}`} className="text-base font-semibold hover:underline">
                   {avatar.avatarName}
                 </Link>
+                {/* Followers — always the latest known value, independent of the period tab above. */}
+                {avatar.followers.map((f) => (
+                  <Link
+                    key={f.platform}
+                    href={`/dashboard/avatars/${avatar.avatarId}?platform=${f.platform}`}
+                    className="text-sm text-neutral-300 hover:text-neutral-100 hover:underline"
+                  >
+                    <span className="font-semibold tabular-nums">
+                      {f.followers === null ? '—' : fmt(f.followers)}
+                    </span>
+                    <sub className="ml-0.5 text-neutral-500">{PLATFORM_SHORT_NAME[f.platform]}</sub>
+                  </Link>
+                ))}
               </div>
-
-              {/* Followers — always the latest known value, independent of the period tab above. */}
-              {avatar.followers.length > 0 && (
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {avatar.followers.map((f) => (
-                    <div
-                      key={f.platform}
-                      className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm"
-                    >
-                      <span className="text-neutral-500">{PLATFORM_DISPLAY_NAME[f.platform]}</span>
-                      <span className="font-semibold tabular-nums text-neutral-100">
-                        {f.followers === null ? '—' : fmt(f.followers)}
-                      </span>
-                      <span className="text-xs text-neutral-600">followers</span>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {avatar.perPlatform.length === 0 ? (
                 <p className="text-sm text-neutral-600">No content synced for this period yet.</p>

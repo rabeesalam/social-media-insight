@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import type { Avatar, AccountMetricSnapshot, MetricSnapshot, PlatformConnectionSafe, PlatformContent } from '@/types/database'
+import type { Avatar, MetricSnapshot, PlatformConnectionSafe, PlatformContent, PlatformName } from '@/types/database'
 import { ContentTable } from '@/components/ContentTable'
 import { DeleteAvatarButton } from '@/components/DeleteAvatarButton'
 import { ALL_PLATFORMS, PLATFORM_DISPLAY_NAME } from '@/lib/platforms'
+import { latestFollowersByConnection } from '@/lib/followers'
+import { PERIOD_LABEL, periodCutoffMs, type Period } from '@/lib/insights'
 
 const STATUS_LABEL: Record<string, string> = {
   connected: 'Connected',
@@ -22,8 +24,22 @@ const STATUS_DOT: Record<string, string> = {
   pending: 'bg-blue-500',
 }
 
-export default async function AvatarDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const PERIODS: Period[] = ['weekly', 'monthly', 'all']
+
+export default async function AvatarDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ platform?: string; period?: string }>
+}) {
   const { id } = await params
+  const { platform: platformParam, period: periodParam } = await searchParams
+  const platformFilter: PlatformName | null = ALL_PLATFORMS.includes(platformParam as PlatformName)
+    ? (platformParam as PlatformName)
+    : null
+  const period: Period = PERIODS.includes(periodParam as Period) ? (periodParam as Period) : 'all'
+
   const supabase = await createClient()
 
   const { data: avatar } = await supabase
@@ -50,22 +66,7 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
 
   const connectionByPlatform = new Map((connections ?? []).map((c) => [c.platform, c]))
   const connectionIds = (connections ?? []).map((c) => c.id)
-
-  let followersByConnection = new Map<string, number | null>()
-  if (connectionIds.length > 0) {
-    const { data: accountSnapshots } = await supabase
-      .from('account_metric_snapshots')
-      .select('platform_connection_id, captured_at, followers')
-      .in('platform_connection_id', connectionIds)
-      .returns<AccountMetricSnapshot[]>()
-
-    const latestPerConnection = new Map<string, AccountMetricSnapshot>()
-    for (const row of accountSnapshots ?? []) {
-      const existing = latestPerConnection.get(row.platform_connection_id)
-      if (!existing || row.captured_at > existing.captured_at) latestPerConnection.set(row.platform_connection_id, row)
-    }
-    followersByConnection = new Map(Array.from(latestPerConnection.entries()).map(([id, s]) => [id, s.followers]))
-  }
+  const followersByConnection = await latestFollowersByConnection(supabase, connectionIds)
 
   let content: PlatformContent[] = []
   let latestByContentId = new Map<string, MetricSnapshot>()
@@ -89,6 +90,30 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
     }
   }
 
+  const periodCutoff = periodCutoffMs(period)
+
+  const filteredContent = content.filter((item) => {
+    if (platformFilter && item.platform !== platformFilter) return false
+    if (periodCutoff !== null) {
+      if (!item.published_at) return false
+      if (new Date(item.published_at).getTime() < periodCutoff) return false
+    }
+    return true
+  })
+
+  const platformsToShow = platformFilter ? [platformFilter] : ALL_PLATFORMS
+  const basePath = `/dashboard/avatars/${id}`
+
+  function pageHref(overrides: { platform?: string | null; period?: string }) {
+    const params = new URLSearchParams()
+    const p = overrides.platform !== undefined ? overrides.platform : platformFilter
+    const per = overrides.period !== undefined ? overrides.period : period
+    if (p) params.set('platform', p)
+    if (per && per !== 'all') params.set('period', per)
+    const qs = params.toString()
+    return qs ? `${basePath}?${qs}` : basePath
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -101,13 +126,29 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
         {isAdmin && <DeleteAvatarButton avatarId={avatar.id} avatarName={avatar.name} />}
       </div>
 
-      <h2 className="mb-3 text-sm font-medium text-neutral-400">Platform connections</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-medium text-neutral-400">Platform connections</h2>
+        {platformFilter && (
+          <Link href={pageHref({ platform: null })} className="text-sm text-neutral-400 hover:text-neutral-100">
+            Show all platforms ×
+          </Link>
+        )}
+      </div>
       <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {ALL_PLATFORMS.map((platform) => {
+        {platformsToShow.map((platform) => {
           const connection = connectionByPlatform.get(platform)
           const status = connection?.status
+          const isActive = platformFilter === platform
           return (
-            <div key={platform} className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <Link
+              key={platform}
+              href={pageHref({ platform: isActive ? null : platform })}
+              className={`rounded-lg border p-4 transition ${
+                isActive
+                  ? 'border-neutral-500 bg-neutral-800'
+                  : 'border-neutral-800 bg-neutral-900 hover:border-neutral-600'
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <span className="font-medium">{PLATFORM_DISPLAY_NAME[platform]}</span>
                 {status ? (
@@ -134,13 +175,28 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
               {connection?.last_error && (
                 <p className="mt-2 text-xs text-red-400">{connection.last_error}</p>
               )}
-            </div>
+            </Link>
           )
         })}
       </div>
 
-      <h2 className="mb-3 text-sm font-medium text-neutral-400">Content</h2>
-      <ContentTable content={content} latestByContentId={latestByContentId} />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-medium text-neutral-400">Content</h2>
+        <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
+          {PERIODS.map((p) => (
+            <Link
+              key={p}
+              href={pageHref({ period: p })}
+              className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+                p === period ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-400 hover:text-neutral-100'
+              }`}
+            >
+              {PERIOD_LABEL[p]}
+            </Link>
+          ))}
+        </div>
+      </div>
+      <ContentTable content={filteredContent} latestByContentId={latestByContentId} />
     </div>
   )
 }
