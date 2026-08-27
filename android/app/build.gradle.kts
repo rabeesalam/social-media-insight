@@ -34,10 +34,16 @@ android {
         buildConfigField("String", "THREADS_CLIENT_ID", "\"${localProp("THREADS_CLIENT_ID")}\"")
         buildConfigField("String", "X_CLIENT_ID", "\"${localProp("X_CLIENT_ID")}\"")
 
-        // OAuth redirect deep link — must be registered as a valid redirect URI in every
-        // platform's developer console. Matched by the intent-filter in AndroidManifest.xml.
+        // OAuth redirect deep link (Instagram/TikTok/Facebook/Threads/X) — must be registered as
+        // the exact redirect_uri in each platform's developer console. Matched by the first
+        // intent-filter in AndroidManifest.xml.
         manifestPlaceholders["oauthRedirectScheme"] = "com.puresquare.socialinsight"
         manifestPlaceholders["oauthRedirectHost"] = "oauth-callback"
+
+        // Google/YouTube uses a separate HTTPS App Link redirect instead — see ADR-0008. This is
+        // the Vercel deployment's own domain since it already serves .well-known/assetlinks.json.
+        buildConfigField("String", "GOOGLE_OAUTH_REDIRECT_URI", "\"https://web-jet-eight-66.vercel.app/oauth-callback\"")
+        manifestPlaceholders["googleOauthRedirectHost"] = "web-jet-eight-66.vercel.app"
     }
 
     signingConfigs {

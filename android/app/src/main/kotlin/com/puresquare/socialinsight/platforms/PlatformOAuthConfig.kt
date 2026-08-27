@@ -1,6 +1,7 @@
 package com.puresquare.socialinsight.platforms
 
 import com.puresquare.socialinsight.BuildConfig
+import com.puresquare.socialinsight.oauth.OAUTH_REDIRECT_URI
 
 /**
  * Per-platform authorization endpoint + scopes, sourced from docs/platform-capability-matrix.md
@@ -21,6 +22,11 @@ data class PlatformOAuthConfig(
     val extraParams: Map<String, String> = emptyMap(),
     val verified: Boolean,
     val verificationNote: String,
+    // All platforms but Google share one custom-scheme redirect (ADR-0002). Google deprecated
+    // custom-scheme redirects for Android apps entirely, so it uses its own HTTPS App Link
+    // redirect instead — see ADR-0008. This must be the exact string sent to both the
+    // authorization request AND the token exchange (OAuth requires them to match).
+    val redirectUri: String = OAUTH_REDIRECT_URI,
 ) {
     val isConfigured: Boolean get() = clientId.isNotBlank()
 }
@@ -68,6 +74,7 @@ object PlatformOAuthRegistry {
             extraParams = mapOf("access_type" to "offline", "prompt" to "select_account consent"),
             verified = true,
             verificationNote = "Verified against developers.google.com/youtube 2026-08-25 (see capability matrix).",
+            redirectUri = BuildConfig.GOOGLE_OAUTH_REDIRECT_URI,
         ),
         Platform.FACEBOOK to PlatformOAuthConfig(
             platform = Platform.FACEBOOK,

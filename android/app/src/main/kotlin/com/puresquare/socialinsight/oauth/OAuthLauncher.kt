@@ -15,6 +15,7 @@ data class PendingAuthorization(
     val avatarId: String,
     val state: String,
     val codeVerifier: String,
+    val redirectUri: String,
 )
 
 /**
@@ -32,7 +33,7 @@ object OAuthLauncher {
 
         val uriBuilder = Uri.parse(config.authorizeUrl).buildUpon()
             .appendQueryParameter(if (config.platform.id == "tiktok") "client_key" else "client_id", config.clientId)
-            .appendQueryParameter("redirect_uri", OAUTH_REDIRECT_URI)
+            .appendQueryParameter("redirect_uri", config.redirectUri)
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("scope", config.scopes.joinToString(if (config.platform.id == "tiktok") "," else " "))
             .appendQueryParameter("state", state)
@@ -52,6 +53,7 @@ object OAuthLauncher {
             avatarId = avatarId,
             state = state,
             codeVerifier = codeVerifier,
+            redirectUri = config.redirectUri,
         )
     }
 }

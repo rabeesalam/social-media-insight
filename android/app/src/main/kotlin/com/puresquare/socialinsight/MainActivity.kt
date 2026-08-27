@@ -53,7 +53,13 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         val uri: Uri = intent?.data ?: return
-        if (uri.scheme == "com.puresquare.socialinsight" && uri.host == "oauth-callback") {
+        // Two redirect shapes: the custom-scheme one shared by Instagram/TikTok/Facebook/Threads/X
+        // (ADR-0002), and Google's HTTPS App Link (ADR-0008 — Google no longer supports custom
+        // schemes for Android apps at all). Either lands here since MainActivity's intent-filters
+        // (AndroidManifest.xml) declare both.
+        val isCustomSchemeRedirect = uri.scheme == "com.puresquare.socialinsight" && uri.host == "oauth-callback"
+        val isGoogleAppLinkRedirect = uri.scheme == "https" && uri.path?.startsWith("/oauth-callback") == true
+        if (isCustomSchemeRedirect || isGoogleAppLinkRedirect) {
             viewModel.handleOAuthRedirect(uri)
         }
     }

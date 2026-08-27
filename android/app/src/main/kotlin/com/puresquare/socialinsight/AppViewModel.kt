@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.puresquare.socialinsight.data.DeviceIdentity
 import com.puresquare.socialinsight.data.SupabaseApi
 import com.puresquare.socialinsight.data.rpcCall
-import com.puresquare.socialinsight.oauth.OAUTH_REDIRECT_URI
 import com.puresquare.socialinsight.oauth.OAuthLauncher
 import com.puresquare.socialinsight.oauth.PendingAuthorization
 import com.puresquare.socialinsight.platforms.Platform
@@ -165,7 +164,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     platform = pending.platform,
                     code = code,
                     codeVerifier = pending.codeVerifier,
-                    redirectUri = OAUTH_REDIRECT_URI,
+                    redirectUri = pending.redirectUri,
                 )
             }
             pendingAuthorization = null

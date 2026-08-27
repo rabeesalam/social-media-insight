@@ -21,8 +21,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- OAuth redirect deep link, e.g. com.puresquare.socialinsight://oauth-callback?code=...&state=...
-                 Must be registered as the exact redirect_uri in every platform's developer console. -->
+            <!-- OAuth redirect deep link (Instagram/TikTok/Facebook/Threads/X), e.g.
+                 com.puresquare.socialinsight://oauth-callback?code=...&state=...
+                 Must be registered as the exact redirect_uri in each platform's developer console. -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -30,6 +31,21 @@
                 <data
                     android:scheme="${oauthRedirectScheme}"
                     android:host="${oauthRedirectHost}" />
+            </intent-filter>
+
+            <!-- Google/YouTube OAuth redirect — HTTPS App Link, NOT a custom scheme. Google
+                 deprecated custom-scheme redirects for Android apps entirely (verified against
+                 current official docs, not assumed — see ADR-0008). autoVerify="true" makes
+                 Android check web/public/.well-known/assetlinks.json at install time and route
+                 matching navigations straight to this activity instead of the browser. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${googleOauthRedirectHost}"
+                    android:pathPrefix="/oauth-callback" />
             </intent-filter>
         </activity>
 

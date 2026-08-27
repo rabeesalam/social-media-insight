@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.puresquare.socialinsight",
+      "sha256_cert_fingerprints": [
+        "B7:05:83:15:F2:D6:E2:E3:B2:D3:94:93:0E:E1:0A:FB:B9:B9:DA:37:7D:4F:C5:A6:BD:3E:50:4A:72:25:8C:D0"
+      ]
+    }
+  }
+]
