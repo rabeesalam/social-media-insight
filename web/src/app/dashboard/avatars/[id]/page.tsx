@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Avatar, MetricSnapshot, PlatformConnectionSafe, PlatformContent, PlatformName } from '@/types/database'
 import { ContentTable } from '@/components/ContentTable'
 import { DeleteAvatarButton } from '@/components/DeleteAvatarButton'
-import { ALL_PLATFORMS, PLATFORM_DISPLAY_NAME } from '@/lib/platforms'
+import { ALL_PLATFORMS, PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
 import { latestFollowersByConnection } from '@/lib/followers'
 import { PERIOD_LABEL, periodCutoffMs, type Period } from '@/lib/insights'
 
@@ -171,7 +171,7 @@ export default async function AvatarDetailPage({
                     <span className="font-semibold tabular-nums text-neutral-100">
                       {followers === null ? '—' : new Intl.NumberFormat('en-US', { notation: followers >= 10000 ? 'compact' : 'standard' }).format(followers)}
                     </span>{' '}
-                    <span className="text-xs text-neutral-500">followers</span>
+                    <span className="text-xs text-neutral-500">{PLATFORM_FOLLOWER_LABEL[platform]}</span>
                   </p>
                 ) : null
               })()}

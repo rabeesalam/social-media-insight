@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getInsights, PERIOD_LABEL, type Period, type MetricTotals } from '@/lib/insights'
-import { PLATFORM_DISPLAY_NAME, PLATFORM_SHORT_NAME } from '@/lib/platforms'
+import { PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
 
 const PERIODS: Period[] = ['weekly', 'monthly', 'all']
 
@@ -76,7 +76,7 @@ export default async function InsightsPage({
         <div className="space-y-10">
           {insights.map((avatar) => (
             <div key={avatar.avatarId}>
-              <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 <Link href={`/dashboard/avatars/${avatar.avatarId}`} className="text-base font-semibold hover:underline">
                   {avatar.avatarName}
                 </Link>
@@ -85,12 +85,13 @@ export default async function InsightsPage({
                   <Link
                     key={f.platform}
                     href={`/dashboard/avatars/${avatar.avatarId}?platform=${f.platform}`}
-                    className="text-sm text-neutral-300 hover:text-neutral-100 hover:underline"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-neutral-800 bg-neutral-950/60 px-2.5 py-1 text-sm transition hover:border-neutral-600"
                   >
-                    <span className="font-semibold tabular-nums">
+                    <span className="text-neutral-400">{PLATFORM_DISPLAY_NAME[f.platform]}</span>
+                    <span className="font-semibold tabular-nums text-neutral-100">
                       {f.followers === null ? '—' : fmt(f.followers)}
                     </span>
-                    <sub className="ml-0.5 text-neutral-500">{PLATFORM_SHORT_NAME[f.platform]}</sub>
+                    <span className="text-xs text-neutral-500">{PLATFORM_FOLLOWER_LABEL[f.platform]}</span>
                   </Link>
                 ))}
               </div>

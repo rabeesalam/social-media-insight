@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import type { Avatar, Device, PlatformConnectionSafe } from '@/types/database'
 import { latestFollowersByConnection } from '@/lib/followers'
-import { PLATFORM_SHORT_NAME } from '@/lib/platforms'
+import { PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { notation: n >= 10000 ? 'compact' : 'standard' }).format(n)
@@ -77,19 +77,20 @@ export default async function DashboardHomePage() {
                 </p>
               </Link>
               {avatarConnections.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {avatarConnections.map((c) => {
                     const followers = followersByConnection.get(c.id)
                     return (
                       <Link
                         key={c.id}
                         href={`/dashboard/avatars/${avatar.id}?platform=${c.platform}`}
-                        className="text-sm text-neutral-300 hover:text-neutral-100 hover:underline"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-neutral-800 bg-neutral-950/60 px-2.5 py-1 text-sm transition hover:border-neutral-600"
                       >
-                        <span className="font-semibold tabular-nums">
+                        <span className="text-neutral-400">{PLATFORM_DISPLAY_NAME[c.platform]}</span>
+                        <span className="font-semibold tabular-nums text-neutral-100">
                           {followers == null ? '—' : fmt(followers)}
                         </span>
-                        <sub className="ml-0.5 text-neutral-500">{PLATFORM_SHORT_NAME[c.platform]}</sub>
+                        <span className="text-xs text-neutral-500">{PLATFORM_FOLLOWER_LABEL[c.platform]}</span>
                       </Link>
                     )
                   })}

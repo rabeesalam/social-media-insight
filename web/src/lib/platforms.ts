@@ -21,3 +21,13 @@ export const PLATFORM_SHORT_NAME: Record<PlatformName, string> = {
   threads: 'threads',
   x: 'x',
 }
+
+// YouTube calls them subscribers, not followers — every other platform here uses "followers".
+export const PLATFORM_FOLLOWER_LABEL: Record<PlatformName, string> = {
+  instagram: 'followers',
+  tiktok: 'followers',
+  youtube: 'subscribers',
+  facebook: 'followers',
+  threads: 'followers',
+  x: 'followers',
+}
