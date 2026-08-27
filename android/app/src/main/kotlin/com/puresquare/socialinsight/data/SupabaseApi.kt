@@ -294,6 +294,21 @@ class SupabaseApi(
         return runCatching { json.decodeFromJsonElement(ContentLookup.serializer(), row) }.getOrNull()
     }
 
+    /** Every platform_media_id already on file for this connection — lets a platform adapter stop
+     * paginating as soon as it hits familiar content instead of re-walking the whole history. */
+    fun listKnownMediaIds(identity: DeviceIdentity, platformConnectionId: String): Set<String> {
+        val result = rpc(
+            "list_known_media_ids_for_device",
+            buildJsonObject {
+                put("p_device_uuid", identity.deviceUuid)
+                put("p_device_secret", identity.requireSecret())
+                put("p_platform_connection_id", platformConnectionId)
+            }
+        )
+        val array = result as? kotlinx.serialization.json.JsonArray ?: return emptySet()
+        return array.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.toSet()
+    }
+
     fun startSyncJob(identity: DeviceIdentity, jobId: String) {
         rpc(
             "start_sync_job",

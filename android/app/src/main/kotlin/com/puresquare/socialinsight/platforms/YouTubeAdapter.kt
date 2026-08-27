@@ -55,9 +55,19 @@ class YouTubeAdapter {
         }
     }
 
-    /** Lists the channel's recent uploads via the uploads playlist (1 quota unit) rather than
-     * search.list (100 quota units) — see docs/platform-capability-matrix.md rate-limit notes. */
-    fun listContent(accessToken: String, maxResults: Int = 25): List<RawContent> {
+    /**
+     * Lists the channel's uploads via the uploads playlist (1 quota unit per page) rather than
+     * search.list (100 quota units) — see docs/platform-capability-matrix.md rate-limit notes.
+     *
+     * Paginates the playlist (newest-first) until either: (a) it hits a video already in
+     * [knownMediaIds] — everything after that point is already on file, so stop; or (b) it runs
+     * out of pages (full history reached — happens on a brand-new connection's first sync); or
+     * (c) [maxPages] is hit, a safety cap so one pathological channel can't consume unbounded
+     * quota in a single run. On an already-backfilled channel, ongoing syncs typically stop after
+     * page 1 (nothing new), costing 1 quota unit — the full walk-back only happens once, on
+     * first connection.
+     */
+    fun listContent(accessToken: String, knownMediaIds: Set<String>, maxPages: Int = 20): List<RawContent> {
         val channelResponse = get(
             "https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true",
             accessToken,
@@ -69,29 +79,51 @@ class YouTubeAdapter {
             ?.optString("uploads")
             ?: throw PlatformApiException(404, "No YouTube channel found for this account")
 
-        val playlistResponse = get(
-            "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=$uploadsPlaylistId&maxResults=$maxResults",
-            accessToken,
-        )
-        val items = playlistResponse.optJSONArray("items") ?: return emptyList()
+        val results = mutableListOf<RawContent>()
+        var pageToken: String? = null
+        var page = 0
 
-        return (0 until items.length()).map { i ->
-            val item = items.getJSONObject(i)
-            val snippet = item.optJSONObject("snippet")
-            val videoId = item.optJSONObject("contentDetails")?.optString("videoId").orEmpty()
-            val thumbnails = snippet?.optJSONObject("thumbnails")
-            val thumbnailUrl = (thumbnails?.optJSONObject("high") ?: thumbnails?.optJSONObject("default"))
-                ?.optString("url")
-
-            RawContent(
-                platformMediaId = videoId,
-                publicUrl = "https://www.youtube.com/watch?v=$videoId",
-                title = snippet?.optString("title"),
-                thumbnailUrl = thumbnailUrl,
-                mediaType = "video", // Shorts detection needs a separate videos.list(part=contentDetails) duration check — not done yet
-                publishedAt = snippet?.optString("publishedAt"),
+        while (page < maxPages) {
+            page++
+            val pageParam = pageToken?.let { "&pageToken=$it" } ?: ""
+            val playlistResponse = get(
+                "https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=$uploadsPlaylistId&maxResults=50$pageParam",
+                accessToken,
             )
+            val items = playlistResponse.optJSONArray("items") ?: break
+
+            var hitKnownVideo = false
+            for (i in 0 until items.length()) {
+                val item = items.getJSONObject(i)
+                val snippet = item.optJSONObject("snippet")
+                val videoId = item.optJSONObject("contentDetails")?.optString("videoId").orEmpty()
+
+                if (videoId in knownMediaIds) {
+                    hitKnownVideo = true
+                    break
+                }
+
+                val thumbnails = snippet?.optJSONObject("thumbnails")
+                val thumbnailUrl = (thumbnails?.optJSONObject("high") ?: thumbnails?.optJSONObject("default"))
+                    ?.optString("url")
+
+                results.add(
+                    RawContent(
+                        platformMediaId = videoId,
+                        publicUrl = "https://www.youtube.com/watch?v=$videoId",
+                        title = snippet?.optString("title"),
+                        thumbnailUrl = thumbnailUrl,
+                        mediaType = "video", // Shorts detection needs a separate videos.list(part=contentDetails) duration check — not done yet
+                        publishedAt = snippet?.optString("publishedAt"),
+                    )
+                )
+            }
+
+            if (hitKnownVideo) break
+            pageToken = playlistResponse.optString("nextPageToken", "").ifBlank { null } ?: break
         }
+
+        return results
     }
 
     fun getContentMetrics(accessToken: String, videoId: String): RawMetrics {

@@ -53,7 +53,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             val tokenResult = rpcCall { api.getAccessToken(identity, connection.id) }.getOrNull() ?: continue
             val accessToken = tokenResult.access_token ?: continue
 
-            val content = runCatching { youTube.listContent(accessToken) }.getOrNull() ?: continue
+            val knownMediaIds = rpcCall { api.listKnownMediaIds(identity, connection.id) }.getOrDefault(emptySet())
+            val content = runCatching { youTube.listContent(accessToken, knownMediaIds) }.getOrNull() ?: continue
             for (item in content) {
                 rpcCall {
                     api.upsertPlatformContent(
