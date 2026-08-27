@@ -1,0 +1,38 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.keystore
+*.jks
+!debug.keystore
+
+# Node / web
+web/node_modules/
+web/.next/
+web/out/
+web/.vercel/
+node_modules/
+
+# Android
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/captures/
+android/.cxx/
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Claude Code local-only settings (personal tool-permission grants, not project config)
+.claude/settings.local.json

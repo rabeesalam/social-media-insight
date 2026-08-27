@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose does its own theming (ui/theme/Theme.kt); this is only the pre-Compose window
+         theme Android needs before the first Compose frame draws. -->
+    <style name="Theme.SocialInsight" parent="android:Theme.Material.NoActionBar" />
+</resources>

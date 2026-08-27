@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Explicit, minimal: system CAs only, cleartext traffic disabled. All API calls (Supabase,
+     every platform's OAuth/token endpoints) are HTTPS — nothing here needs a custom trust anchor
+     or cleartext exception. See docs/decisions/0006-network-path-and-proxy.md. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

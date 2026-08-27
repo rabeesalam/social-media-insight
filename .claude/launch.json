@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-dashboard",
+      "runtimeExecutable": "C:\\Windows\\System32\\cmd.exe",
+      "runtimeArgs": ["/c", "C:\\Users\\rabees.alam\\Documents\\Social media Insight\\scripts\\dev-web.bat"],
+      "port": 3000
+    }
+  ]
+}
