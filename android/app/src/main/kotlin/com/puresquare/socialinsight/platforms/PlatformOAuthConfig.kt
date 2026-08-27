@@ -58,7 +58,14 @@ object PlatformOAuthRegistry {
                 "https://www.googleapis.com/auth/yt-analytics.readonly",
             ),
             usesPkce = true,
-            extraParams = mapOf("access_type" to "offline", "prompt" to "consent"),
+            // "prompt" accepts a space-separated list of values in ONE param: select_account
+            // forces Google's account-chooser UI (critical for this app, since a phone will
+            // often have multiple Google accounts signed in across avatars) — without it, Google
+            // silently reuses whichever account already has an active session instead of asking.
+            // consent forces the consent screen every time, which guarantees a refresh_token is
+            // re-issued (Google only issues one on the *first* consent for a given account+app
+            // otherwise).
+            extraParams = mapOf("access_type" to "offline", "prompt" to "select_account consent"),
             verified = true,
             verificationNote = "Verified against developers.google.com/youtube 2026-08-25 (see capability matrix).",
         ),
