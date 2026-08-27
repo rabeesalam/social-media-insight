@@ -28,6 +28,26 @@ data class RawMetrics(
     val rawResponseJson: String,
 )
 
+/** Account-level follower count, tracked as its own time series (account_metric_snapshots) —
+ * separate from per-video metrics. */
+data class RawAccountMetrics(
+    val followers: Long?,
+    val following: Long?,
+    val rawResponseJson: String,
+)
+
+/**
+ * Standard "engagement by views" formula: (likes + comments + shares + saves) / views * 100.
+ * Null (not 0) when views is null or zero — an undefined rate is not a zero rate. Shared across
+ * every platform adapter so "engagement rate" means the same thing everywhere in the dashboard.
+ */
+fun RawMetrics.engagementRatePercent(): Double? {
+    val v = views ?: return null
+    if (v <= 0) return null
+    val engaged = (likes ?: 0) + (comments ?: 0) + (shares ?: 0) + (saves ?: 0)
+    return engaged.toDouble() / v.toDouble() * 100.0
+}
+
 /**
  * First platform adapter implemented end-to-end (Phase 6 of the build order — YouTube chosen
  * because its OAuth doesn't strictly require a client_secret for an Android/installed-app client,
@@ -144,6 +164,27 @@ class YouTubeAdapter {
             saves = null, // YouTube has no "saves" concept
             watchTimeSeconds = null, // requires YouTube Analytics API — not implemented yet
             averageWatchTimeSeconds = null,
+            rawResponseJson = response.toString(),
+        )
+    }
+
+    /** Subscriber count, tracked as its own time series so growth is visible, not just a snapshot.
+     * 1 quota unit — cheap enough to check on every sync cycle. */
+    fun getAccountMetrics(accessToken: String): RawAccountMetrics {
+        val response = get(
+            "https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true",
+            accessToken,
+        )
+        val stats = response.optJSONArray("items")?.optJSONObject(0)?.optJSONObject("statistics")
+            ?: throw PlatformApiException(404, "No YouTube channel found for this account")
+
+        // Respect a creator's choice to hide their subscriber count — showing it anyway would be
+        // both dishonest to viewers of our dashboard and a violation of that setting's intent.
+        val hidden = stats.optBoolean("hiddenSubscriberCount", false)
+
+        return RawAccountMetrics(
+            followers = if (hidden || !stats.has("subscriberCount")) null else stats.optLong("subscriberCount"),
+            following = null, // channels don't have a "following" concept in this sense
             rawResponseJson = response.toString(),
         )
     }

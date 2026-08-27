@@ -413,6 +413,30 @@ class SupabaseApi(
             }
         )
     }
+
+    fun insertAccountMetricSnapshot(
+        identity: DeviceIdentity,
+        platformConnectionId: String,
+        followers: Long?,
+        following: Long?,
+        rawResponseJson: String?,
+    ) {
+        rpc(
+            "insert_account_metric_snapshot",
+            buildJsonObject {
+                put("p_device_uuid", identity.deviceUuid)
+                put("p_device_secret", identity.requireSecret())
+                put("p_platform_connection_id", platformConnectionId)
+                put("p_followers", followers)
+                put("p_following", following)
+                put(
+                    "p_raw_response",
+                    rawResponseJson?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() }
+                        ?: kotlinx.serialization.json.JsonNull
+                )
+            }
+        )
+    }
 }
 
 /** Runs [block] and converts any failure into a plain user-facing message — never shows raw

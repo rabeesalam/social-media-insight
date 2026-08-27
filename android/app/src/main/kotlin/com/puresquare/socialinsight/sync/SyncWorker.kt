@@ -15,6 +15,7 @@ import com.puresquare.socialinsight.data.SupabaseApi
 import com.puresquare.socialinsight.data.rpcCall
 import com.puresquare.socialinsight.platforms.PlatformApiException
 import com.puresquare.socialinsight.platforms.YouTubeAdapter
+import com.puresquare.socialinsight.platforms.engagementRatePercent
 import java.util.concurrent.TimeUnit
 
 /**
@@ -52,6 +53,20 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         for (connection in connections.filter { it.status == "connected" && it.platform == "youtube" }) {
             val tokenResult = rpcCall { api.getAccessToken(identity, connection.id) }.getOrNull() ?: continue
             val accessToken = tokenResult.access_token ?: continue
+
+            // Follower count — its own time series, checked every cycle. 1 quota unit, cheap
+            // enough that there's no reason to throttle it separately from content discovery.
+            runCatching { youTube.getAccountMetrics(accessToken) }.getOrNull()?.let { account ->
+                rpcCall {
+                    api.insertAccountMetricSnapshot(
+                        identity = identity,
+                        platformConnectionId = connection.id,
+                        followers = account.followers,
+                        following = account.following,
+                        rawResponseJson = account.rawResponseJson,
+                    )
+                }
+            }
 
             val knownMediaIds = rpcCall { api.listKnownMediaIds(identity, connection.id) }.getOrDefault(emptySet())
             val content = runCatching { youTube.listContent(accessToken, knownMediaIds) }.getOrNull() ?: continue
@@ -131,7 +146,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     saves = metrics.saves,
                     watchTimeSeconds = metrics.watchTimeSeconds,
                     averageWatchTimeSeconds = metrics.averageWatchTimeSeconds,
-                    engagementRate = null,
+                    engagementRate = metrics.engagementRatePercent(),
                     rawResponseJson = metrics.rawResponseJson,
                 )
             }
