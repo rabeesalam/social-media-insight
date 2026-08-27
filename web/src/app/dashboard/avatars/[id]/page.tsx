@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Avatar, MetricSnapshot, PlatformConnectionSafe, PlatformContent } from '@/types/database'
 import { ContentTable } from '@/components/ContentTable'
+import { DeleteAvatarButton } from '@/components/DeleteAvatarButton'
 import { ALL_PLATFORMS, PLATFORM_DISPLAY_NAME } from '@/lib/platforms'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -32,6 +33,14 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
     .single<Avatar>()
 
   if (!avatar) notFound()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('role').eq('id', user.id).single<{ role: string }>()
+    : { data: null }
+  const isAdmin = profile?.role === 'admin'
 
   const { data: connections } = await supabase
     .from('platform_connections_safe')
@@ -73,6 +82,7 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
           </Link>
           <h1 className="mt-1 text-lg font-semibold">{avatar.name}</h1>
         </div>
+        {isAdmin && <DeleteAvatarButton avatarId={avatar.id} avatarName={avatar.name} />}
       </div>
 
       <h2 className="mb-3 text-sm font-medium text-neutral-400">Platform connections</h2>
