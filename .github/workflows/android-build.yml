@@ -28,6 +28,13 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      # No gradlew/gradle-wrapper.jar is committed yet — generating it locally is exactly what the
+      # Windows loopback-socket bug above blocks (any JVM subprocess, including `gradle wrapper`
+      # itself). Installing Gradle directly on the Linux runner sidesteps that entirely.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11'
+
       # SUPABASE_ANON_KEY is not a secret (it grants nothing without RLS/device-secret checks
       # passing — see docs/decisions/0002-secret-boundary-and-auth-model.md), so it's committed
       # here directly rather than routed through a GitHub Actions secret. Platform client IDs are
@@ -49,7 +56,7 @@ jobs:
           EOF
 
       - name: Build debug APK
-        run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
