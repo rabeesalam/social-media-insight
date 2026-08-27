@@ -14,6 +14,10 @@ import com.puresquare.socialinsight.data.DeviceIdentity
 import com.puresquare.socialinsight.data.SupabaseApi
 import com.puresquare.socialinsight.data.rpcCall
 import com.puresquare.socialinsight.platforms.PlatformApiException
+import com.puresquare.socialinsight.platforms.RawAccountMetrics
+import com.puresquare.socialinsight.platforms.RawContent
+import com.puresquare.socialinsight.platforms.RawMetrics
+import com.puresquare.socialinsight.platforms.TikTokAdapter
 import com.puresquare.socialinsight.platforms.YouTubeAdapter
 import com.puresquare.socialinsight.platforms.engagementRatePercent
 import java.util.concurrent.TimeUnit
@@ -35,6 +39,32 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     private val identity = DeviceIdentity(applicationContext)
     private val api = SupabaseApi()
     private val youTube = YouTubeAdapter()
+    private val tikTok = TikTokAdapter()
+
+    /** Platforms with a real data-fetch adapter — everything else gets an honest
+     * "not_implemented" instead of silently doing nothing (§8/§34: never fake support). */
+    private val implementedPlatforms = setOf("youtube", "tiktok")
+
+    private fun listContentFor(platform: String, accessToken: String, knownMediaIds: Set<String>): List<RawContent> =
+        when (platform) {
+            "youtube" -> youTube.listContent(accessToken, knownMediaIds)
+            "tiktok" -> tikTok.listContent(accessToken, knownMediaIds)
+            else -> error("No adapter for $platform")
+        }
+
+    private fun contentMetricsFor(platform: String, accessToken: String, mediaId: String): RawMetrics =
+        when (platform) {
+            "youtube" -> youTube.getContentMetrics(accessToken, mediaId)
+            "tiktok" -> tikTok.getContentMetrics(accessToken, mediaId)
+            else -> error("No adapter for $platform")
+        }
+
+    private fun accountMetricsFor(platform: String, accessToken: String): RawAccountMetrics =
+        when (platform) {
+            "youtube" -> youTube.getAccountMetrics(accessToken)
+            "tiktok" -> tikTok.getAccountMetrics(accessToken)
+            else -> error("No adapter for $platform")
+        }
 
     override suspend fun doWork(): Result {
         if (!identity.isRegistered) return Result.success() // nothing to do before first registration
@@ -50,13 +80,13 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     private fun discoverNewContent() {
         val connections = rpcCall { api.listPlatformConnections(identity) }.getOrNull() ?: return
 
-        for (connection in connections.filter { it.status == "connected" && it.platform == "youtube" }) {
+        for (connection in connections.filter { it.status == "connected" && it.platform in implementedPlatforms }) {
             val tokenResult = rpcCall { api.getAccessToken(identity, connection.id) }.getOrNull() ?: continue
             val accessToken = tokenResult.access_token ?: continue
 
-            // Follower count — its own time series, checked every cycle. 1 quota unit, cheap
-            // enough that there's no reason to throttle it separately from content discovery.
-            runCatching { youTube.getAccountMetrics(accessToken) }.getOrNull()?.let { account ->
+            // Follower count — its own time series, checked every cycle. Cheap enough (1 API call)
+            // that there's no reason to throttle it separately from content discovery.
+            runCatching { accountMetricsFor(connection.platform, accessToken) }.getOrNull()?.let { account ->
                 rpcCall {
                     api.insertAccountMetricSnapshot(
                         identity = identity,
@@ -69,13 +99,13 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             }
 
             val knownMediaIds = rpcCall { api.listKnownMediaIds(identity, connection.id) }.getOrDefault(emptySet())
-            val content = runCatching { youTube.listContent(accessToken, knownMediaIds) }.getOrNull() ?: continue
+            val content = runCatching { listContentFor(connection.platform, accessToken, knownMediaIds) }.getOrNull() ?: continue
             for (item in content) {
                 rpcCall {
                     api.upsertPlatformContent(
                         identity = identity,
                         platformConnectionId = connection.id,
-                        platform = "youtube",
+                        platform = connection.platform,
                         platformMediaId = item.platformMediaId,
                         publicUrl = item.publicUrl,
                         title = item.title,
@@ -114,7 +144,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             return
         }
 
-        if (lookup.platform != "youtube") {
+        if (lookup.platform !in implementedPlatforms) {
             // Honest, not silent: this platform's adapter simply doesn't exist yet.
             rpcCall {
                 api.completeSyncJob(
@@ -134,7 +164,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         }
 
         try {
-            val metrics = youTube.getContentMetrics(accessToken, lookup.platform_media_id)
+            val metrics = contentMetricsFor(lookup.platform, accessToken, lookup.platform_media_id)
             rpcCall {
                 api.insertMetricSnapshot(
                     identity = identity,
