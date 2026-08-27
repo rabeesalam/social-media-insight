@@ -40,10 +40,13 @@ android {
         manifestPlaceholders["oauthRedirectScheme"] = "com.puresquare.socialinsight"
         manifestPlaceholders["oauthRedirectHost"] = "oauth-callback"
 
-        // Google/YouTube uses a separate HTTPS App Link redirect instead — see ADR-0008. This is
-        // the Vercel deployment's own domain since it already serves .well-known/assetlinks.json.
-        buildConfigField("String", "GOOGLE_OAUTH_REDIRECT_URI", "\"https://web-jet-eight-66.vercel.app/oauth-callback\"")
-        manifestPlaceholders["googleOauthRedirectHost"] = "web-jet-eight-66.vercel.app"
+        // Some platforms' Android OAuth clients require an HTTPS App Link redirect instead of a
+        // custom scheme — confirmed for Google (ADR-0008) and TikTok (its Android redirect_uri
+        // rules require HTTPS too, per docs/platform-capability-matrix.md). Shared by any platform
+        // that needs it — this is the Vercel deployment's own domain since it already serves
+        // .well-known/assetlinks.json.
+        buildConfigField("String", "APP_LINK_REDIRECT_URI", "\"https://web-jet-eight-66.vercel.app/oauth-callback\"")
+        manifestPlaceholders["appLinkRedirectHost"] = "web-jet-eight-66.vercel.app"
     }
 
     signingConfigs {

@@ -33,18 +33,17 @@
                     android:host="${oauthRedirectHost}" />
             </intent-filter>
 
-            <!-- Google/YouTube OAuth redirect — HTTPS App Link, NOT a custom scheme. Google
-                 deprecated custom-scheme redirects for Android apps entirely (verified against
-                 current official docs, not assumed — see ADR-0008). autoVerify="true" makes
-                 Android check web/public/.well-known/assetlinks.json at install time and route
-                 matching navigations straight to this activity instead of the browser. -->
+            <!-- Shared HTTPS App Link redirect for platforms whose Android OAuth rules don't allow
+                 a custom scheme — Google (ADR-0008) and TikTok both require this. autoVerify="true"
+                 makes Android check web/public/.well-known/assetlinks.json at install time and
+                 route matching navigations straight to this activity instead of the browser. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="${googleOauthRedirectHost}"
+                    android:host="${appLinkRedirectHost}"
                     android:pathPrefix="/oauth-callback" />
             </intent-filter>
         </activity>

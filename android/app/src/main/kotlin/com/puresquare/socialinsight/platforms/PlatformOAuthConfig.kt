@@ -54,6 +54,9 @@ object PlatformOAuthRegistry {
             extraParams = mapOf(), // TikTok's client id param is "client_key", not "client_id" — see buildAuthorizationUrl
             verified = true,
             verificationNote = "Verified against developers.tiktok.com 2026-08-25 (see capability matrix).",
+            // TikTok's Android redirect_uri rules require HTTPS, same as Google — see ADR-0008
+            // and the shared App Link intent-filter in AndroidManifest.xml.
+            redirectUri = BuildConfig.APP_LINK_REDIRECT_URI,
         ),
         Platform.YOUTUBE to PlatformOAuthConfig(
             platform = Platform.YOUTUBE,
@@ -74,7 +77,7 @@ object PlatformOAuthRegistry {
             extraParams = mapOf("access_type" to "offline", "prompt" to "select_account consent"),
             verified = true,
             verificationNote = "Verified against developers.google.com/youtube 2026-08-25 (see capability matrix).",
-            redirectUri = BuildConfig.GOOGLE_OAUTH_REDIRECT_URI,
+            redirectUri = BuildConfig.APP_LINK_REDIRECT_URI,
         ),
         Platform.FACEBOOK to PlatformOAuthConfig(
             platform = Platform.FACEBOOK,
