@@ -3,6 +3,8 @@ package com.puresquare.socialinsight.sync
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -147,6 +149,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     companion object {
         private const val WORK_NAME = "periodic-sync"
+        private const val ONE_TIME_WORK_NAME = "manual-sync"
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
@@ -159,6 +162,21 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+        }
+
+        /** "Sync now" — runs the exact same discovery + queue-processing logic as the periodic
+         * job, just on demand instead of waiting up to 15 minutes for the next automatic run. */
+        fun triggerNow(context: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
+            val request = OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(constraints)
+                .build()
+
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(ONE_TIME_WORK_NAME, ExistingWorkPolicy.KEEP, request)
         }
     }
 }

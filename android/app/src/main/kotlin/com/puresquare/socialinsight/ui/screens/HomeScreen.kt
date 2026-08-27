@@ -1,16 +1,20 @@
 package com.puresquare.socialinsight.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.puresquare.socialinsight.data.SupabaseApi
+import com.puresquare.socialinsight.sync.SyncWorker
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,9 +24,22 @@ fun HomeScreen(
     onOpenAvatar: (SupabaseApi.Avatar) -> Unit,
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Social Analytics") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Social Analytics") },
+                actions = {
+                    IconButton(onClick = {
+                        SyncWorker.triggerNow(context)
+                        Toast.makeText(context, "Sync started — check back in a moment", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Sync now")
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 text = { Text("Add avatar") },
