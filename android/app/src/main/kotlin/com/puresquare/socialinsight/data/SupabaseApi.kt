@@ -389,7 +389,11 @@ class SupabaseApi(
                 put("p_watch_time_seconds", watchTimeSeconds)
                 put("p_average_watch_time_seconds", averageWatchTimeSeconds)
                 put("p_engagement_rate", engagementRate)
-                put("p_raw_response", rawResponseJson?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() })
+                put(
+                    "p_raw_response",
+                    rawResponseJson?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() }
+                        ?: kotlinx.serialization.json.JsonNull
+                )
                 put("p_metric_status", metricStatus)
             }
         )

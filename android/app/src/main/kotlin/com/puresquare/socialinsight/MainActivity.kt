@@ -7,7 +7,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -17,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.puresquare.socialinsight.data.SupabaseApi
 import com.puresquare.socialinsight.ui.screens.ConnectAccountsScreen
@@ -89,9 +94,9 @@ private fun AppRoot(viewModel: AppViewModel) {
 @Composable
 private fun LoadingScreen(message: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator()
-            androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
             Text(message)
         }
     }
@@ -100,10 +105,10 @@ private fun LoadingScreen(message: String) {
 @Composable
 private fun ErrorScreen(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(message, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            androidx.compose.foundation.layout.Spacer(Modifier.height(16.dp))
-            androidx.compose.material3.Button(onClick = onRetry) { Text("Retry") }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(message, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onRetry) { Text("Retry") }
         }
     }
 }
