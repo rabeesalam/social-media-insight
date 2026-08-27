@@ -31,8 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/dashboard" className="text-sm text-neutral-400 hover:text-neutral-100">
               Avatars
             </Link>
-            <Link href="/dashboard/weekly" className="text-sm text-neutral-400 hover:text-neutral-100">
-              Weekly
+            <Link href="/dashboard/insights" className="text-sm text-neutral-400 hover:text-neutral-100">
+              Insights
             </Link>
             <Link href="/dashboard/devices" className="text-sm text-neutral-400 hover:text-neutral-100">
               Devices

@@ -105,6 +105,14 @@ export interface MetricSnapshot {
   metric_status: 'ok' | 'partial' | 'unavailable' | 'error'
 }
 
+export interface AccountMetricSnapshot {
+  id: string
+  platform_connection_id: string
+  captured_at: string
+  followers: number | null
+  following: number | null
+}
+
 export interface SyncJob {
   id: string
   device_id: string

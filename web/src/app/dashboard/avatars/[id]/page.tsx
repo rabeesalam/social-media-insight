@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import type { Avatar, MetricSnapshot, PlatformConnectionSafe, PlatformContent } from '@/types/database'
+import type { Avatar, AccountMetricSnapshot, MetricSnapshot, PlatformConnectionSafe, PlatformContent } from '@/types/database'
 import { ContentTable } from '@/components/ContentTable'
 import { DeleteAvatarButton } from '@/components/DeleteAvatarButton'
 import { ALL_PLATFORMS, PLATFORM_DISPLAY_NAME } from '@/lib/platforms'
@@ -50,6 +50,22 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
 
   const connectionByPlatform = new Map((connections ?? []).map((c) => [c.platform, c]))
   const connectionIds = (connections ?? []).map((c) => c.id)
+
+  let followersByConnection = new Map<string, number | null>()
+  if (connectionIds.length > 0) {
+    const { data: accountSnapshots } = await supabase
+      .from('account_metric_snapshots')
+      .select('platform_connection_id, captured_at, followers')
+      .in('platform_connection_id', connectionIds)
+      .returns<AccountMetricSnapshot[]>()
+
+    const latestPerConnection = new Map<string, AccountMetricSnapshot>()
+    for (const row of accountSnapshots ?? []) {
+      const existing = latestPerConnection.get(row.platform_connection_id)
+      if (!existing || row.captured_at > existing.captured_at) latestPerConnection.set(row.platform_connection_id, row)
+    }
+    followersByConnection = new Map(Array.from(latestPerConnection.entries()).map(([id, s]) => [id, s.followers]))
+  }
 
   let content: PlatformContent[] = []
   let latestByContentId = new Map<string, MetricSnapshot>()
@@ -104,6 +120,17 @@ export default async function AvatarDetailPage({ params }: { params: Promise<{ i
                 )}
               </div>
               {connection?.username && <p className="mt-1 text-xs text-neutral-500">@{connection.username}</p>}
+              {connection && (() => {
+                const followers = followersByConnection.get(connection.id)
+                return followers !== undefined ? (
+                  <p className="mt-2 text-sm">
+                    <span className="font-semibold tabular-nums text-neutral-100">
+                      {followers === null ? '—' : new Intl.NumberFormat('en-US', { notation: followers >= 10000 ? 'compact' : 'standard' }).format(followers)}
+                    </span>{' '}
+                    <span className="text-xs text-neutral-500">followers</span>
+                  </p>
+                ) : null
+              })()}
               {connection?.last_error && (
                 <p className="mt-2 text-xs text-red-400">{connection.last_error}</p>
               )}

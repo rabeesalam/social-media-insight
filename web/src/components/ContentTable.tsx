@@ -18,6 +18,21 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function fmtRate(n: number | null | undefined): string {
+  if (n === null || n === undefined) return '—'
+  return `${n.toFixed(2)}%`
+}
+
+// Computed from the snapshot's own numbers rather than trusting the stored `engagement_rate`
+// column — that column is only populated by sync runs from after engagement-rate calculation was
+// added (see AppViewModel/SyncWorker history), so older snapshots would otherwise show "—" even
+// though the raw numbers needed to compute it are sitting right there in the same row.
+function engagementRate(metrics: MetricSnapshot | undefined): number | null {
+  if (!metrics || !metrics.views || metrics.views <= 0) return null
+  const engaged = (metrics.likes ?? 0) + (metrics.comments ?? 0) + (metrics.shares ?? 0) + (metrics.saves ?? 0)
+  return (engaged / metrics.views) * 100
+}
+
 export function ContentTable({
   content,
   latestByContentId,
@@ -47,6 +62,7 @@ export function ContentTable({
             <th className="px-3 py-2 font-medium text-right">Shares</th>
             <th className="px-3 py-2 font-medium text-right">Saves</th>
             <th className="px-3 py-2 font-medium text-right">Avg. watch</th>
+            <th className="px-3 py-2 font-medium text-right">Engagement</th>
             <th className="px-3 py-2 font-medium">Updated</th>
             <th className="px-3 py-2 font-medium"></th>
           </tr>
@@ -65,6 +81,7 @@ export function ContentTable({
                 <td className="px-3 py-2 text-right tabular-nums">{fmtNumber(metrics?.shares)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtNumber(metrics?.saves)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtDuration(metrics?.average_watch_time_seconds)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtRate(engagementRate(metrics))}</td>
                 <td className="px-3 py-2 whitespace-nowrap text-neutral-500">
                   {metrics ? fmtDate(metrics.captured_at) : 'Never'}
                 </td>
