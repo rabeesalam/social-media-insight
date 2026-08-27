@@ -40,7 +40,28 @@ android {
         manifestPlaceholders["oauthRedirectHost"] = "oauth-callback"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // A committed, persistent debug keystore — not the ephemeral one AGP would otherwise
+            // generate fresh per machine/CI-runner. Without this, every CI build gets a different
+            // random signing key, so Android refuses to install a new debug build over an existing
+            // one ("signatures don't match"), forcing an uninstall that wipes the app's local
+            // device identity (EncryptedSharedPreferences) and makes it re-register as a brand-new
+            // device every single update. This is a standard, low-risk thing to commit — debug
+            // builds can't be published to any app store and this key carries no real trust
+            // anchor, unlike a release signing key (which must NEVER be committed — see
+            // .gitignore's `*.keystore` / `!debug.keystore` exception).
+            storeFile = file("../debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
