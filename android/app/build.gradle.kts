@@ -104,7 +104,7 @@ dependencies {
 
     // OAuth authorization pages open in a real, trusted browser tab — not a WebView we control —
     // so the platform's own login/account-chooser UI is what the user sees and types into.
-    implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.browser:browser:1.10.0")
 
     // Device identity (device_uuid/device_secret) storage — Android Keystore-backed, never plain
     // SharedPreferences. See docs/decisions/0002-secret-boundary-and-auth-model.md.
