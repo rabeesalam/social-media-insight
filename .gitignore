@@ -36,3 +36,7 @@ Thumbs.db
 
 # Claude Code local-only settings (personal tool-permission grants, not project config)
 .claude/settings.local.json
+
+# Scratch prompt files containing live credentials — never commit these to a public repo
+INSTAGRAM_SETUP_PROMPT.md
+*_SETUP_PROMPT.md

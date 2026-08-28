@@ -24,6 +24,13 @@ data class PendingAuthorization(
  * device has multiple accounts signed in) account-chooser UI is what the user sees and interacts
  * with; this app never touches the user's platform password. See §17 of the product spec and
  * ADR-0002.
+ *
+ * The tab is launched in ephemeral (incognito-style) mode so each connect attempt starts with a
+ * clean cookie jar. Without this, a regular Custom Tab shares Chrome's persistent browser
+ * profile: after avatar A connects TikTok, the authorize page for avatar B's TikTok connect
+ * still sees avatar A's live session cookie and silently re-approves that same account instead
+ * of showing the login page — the account picked for the new avatar is whoever was last logged
+ * in, not who the user actually chose. Ephemeral browsing avoids that regardless of platform.
  */
 object OAuthLauncher {
 
@@ -45,7 +52,9 @@ object OAuthLauncher {
         }
         config.extraParams.forEach { (key, value) -> uriBuilder.appendQueryParameter(key, value) }
 
-        val customTabsIntent = CustomTabsIntent.Builder().build()
+        val customTabsIntent = CustomTabsIntent.Builder()
+            .setEphemeralBrowsingEnabled(true)
+            .build()
         customTabsIntent.launchUrl(context, uriBuilder.build())
 
         return PendingAuthorization(
