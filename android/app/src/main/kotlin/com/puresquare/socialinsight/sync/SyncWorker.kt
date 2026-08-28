@@ -72,6 +72,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         rpcCall { api.deviceHeartbeat(identity) }
 
         runCatching { discoverNewContent() }
+        // Without this, brand-new content sits with a title but no metrics until pg_cron's own
+        // 15-minute tick creates its job — triggering the same scan here means this pass's own
+        // processQueue() below can pick it up immediately instead of the user seeing blank fields.
+        runCatching { rpcCall { api.enqueueDueSyncJobs() } }
         runCatching { processQueue() }
 
         return Result.success()

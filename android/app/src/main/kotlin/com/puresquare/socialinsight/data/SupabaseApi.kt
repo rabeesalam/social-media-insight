@@ -309,6 +309,13 @@ class SupabaseApi(
         return array.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.toSet()
     }
 
+    /** Runs the same due-content scan pg_cron runs every 15 minutes, on demand — closes the gap
+     * where content discovered just now would otherwise have no metric_snapshot until the next
+     * scheduler tick creates its job. Global (not device-scoped) but idempotent/cheap to call. */
+    fun enqueueDueSyncJobs() {
+        rpc("enqueue_due_sync_jobs", buildJsonObject {})
+    }
+
     fun startSyncJob(identity: DeviceIdentity, jobId: String) {
         rpc(
             "start_sync_job",

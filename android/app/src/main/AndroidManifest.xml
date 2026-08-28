@@ -3,6 +3,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Lets the app ask the user to exempt it from Doze/App Standby battery optimization —
+         without this, many OEMs (this project has seen it on Nubia devices in particular) kill
+         WorkManager's periodic background sync outright, so jobs pile up server-side unclaimed
+         until the app is manually reopened. See HomeScreen.kt's battery-exemption banner. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="false"
