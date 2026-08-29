@@ -16,12 +16,13 @@ fun localProp(key: String) = localProps.getProperty(key) ?: ""
 
 android {
     namespace = "com.puresquare.socialinsight"
-    compileSdk = 35
+    // androidx.browser 1.10.0 requires compiling against API 36 or later.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.puresquare.socialinsight"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
 

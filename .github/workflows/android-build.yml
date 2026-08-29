@@ -31,9 +31,11 @@ jobs:
       # No gradlew/gradle-wrapper.jar is committed yet — generating it locally is exactly what the
       # Windows loopback-socket bug above blocks (any JVM subprocess, including `gradle wrapper`
       # itself). Installing Gradle directly on the Linux runner sidesteps that entirely.
+      # AGP 8.9.1 (bumped for androidx.browser 1.10.0's ephemeral-Custom-Tabs API) requires
+      # Gradle 8.11.1 or newer — 8.13 is comfortably within its supported range.
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11'
+          gradle-version: '8.13'
 
       # SUPABASE_ANON_KEY is not a secret (it grants nothing without RLS/device-secret checks
       # passing — see docs/decisions/0002-secret-boundary-and-auth-model.md), so it's committed
