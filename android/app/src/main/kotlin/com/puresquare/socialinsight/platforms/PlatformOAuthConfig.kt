@@ -40,10 +40,13 @@ object PlatformOAuthRegistry {
             clientId = BuildConfig.INSTAGRAM_CLIENT_ID,
             scopes = listOf("instagram_business_basic", "instagram_business_manage_insights"),
             usesPkce = false,
-            verified = false,
-            verificationNote = "Instagram-Login (non-Facebook-Page) flow — endpoint/scopes need a " +
-                "final re-check against current Meta docs before first real use; see " +
-                "docs/platform-capability-matrix.md.",
+            verified = true,
+            verificationNote = "Verified against developers.facebook.com/docs/instagram-platform 2026-08-30 " +
+                "— confirmed no linked Facebook Page required; one Meta App can authorize multiple " +
+                "separate Instagram Business/Creator accounts. Redirect URI scheme (custom vs HTTPS " +
+                "App Link) NOT yet confirmed — Meta's docs don't state it explicitly; test the shared " +
+                "custom-scheme redirect first and fall back to APP_LINK_REDIRECT_URI (like TikTok/Google) " +
+                "if the authorization step rejects it. See docs/platform-capability-matrix.md.",
         ),
         Platform.TIKTOK to PlatformOAuthConfig(
             platform = Platform.TIKTOK,

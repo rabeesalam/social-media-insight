@@ -13,6 +13,7 @@ import androidx.work.NetworkType
 import com.puresquare.socialinsight.data.DeviceIdentity
 import com.puresquare.socialinsight.data.SupabaseApi
 import com.puresquare.socialinsight.data.rpcCall
+import com.puresquare.socialinsight.platforms.InstagramAdapter
 import com.puresquare.socialinsight.platforms.PlatformApiException
 import com.puresquare.socialinsight.platforms.RawAccountMetrics
 import com.puresquare.socialinsight.platforms.RawContent
@@ -40,15 +41,17 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     private val api = SupabaseApi()
     private val youTube = YouTubeAdapter()
     private val tikTok = TikTokAdapter()
+    private val instagram = InstagramAdapter()
 
     /** Platforms with a real data-fetch adapter — everything else gets an honest
      * "not_implemented" instead of silently doing nothing (§8/§34: never fake support). */
-    private val implementedPlatforms = setOf("youtube", "tiktok")
+    private val implementedPlatforms = setOf("youtube", "tiktok", "instagram")
 
     private fun listContentFor(platform: String, accessToken: String, knownMediaIds: Set<String>): List<RawContent> =
         when (platform) {
             "youtube" -> youTube.listContent(accessToken, knownMediaIds)
             "tiktok" -> tikTok.listContent(accessToken, knownMediaIds)
+            "instagram" -> instagram.listContent(accessToken, knownMediaIds)
             else -> error("No adapter for $platform")
         }
 
@@ -56,6 +59,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         when (platform) {
             "youtube" -> youTube.getContentMetrics(accessToken, mediaId)
             "tiktok" -> tikTok.getContentMetrics(accessToken, mediaId)
+            "instagram" -> instagram.getContentMetrics(accessToken, mediaId)
             else -> error("No adapter for $platform")
         }
 
@@ -63,6 +67,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         when (platform) {
             "youtube" -> youTube.getAccountMetrics(accessToken)
             "tiktok" -> tikTok.getAccountMetrics(accessToken)
+            "instagram" -> instagram.getAccountMetrics(accessToken)
             else -> error("No adapter for $platform")
         }
 

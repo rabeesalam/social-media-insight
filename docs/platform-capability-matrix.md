@@ -8,30 +8,27 @@ Legend: ✅ supported · ⚠️ conditional/limited · ❌ not available via off
 
 ## Instagram
 
-**Status: ⚠️ needs a final re-verification pass before first real use** — the research agent for
-this platform was lost to a session interruption before completing. The adapter code
-(`supabase/functions/_shared/platforms.ts`, `android/.../PlatformOAuthConfig.kt`) uses the
-"Instagram API with Instagram Login" pattern below based on general knowledge of Meta's current
-direction, each marked `verified: false` in code — re-run the research before depending on this in
-production.
+**Status: ✅ verified and implemented** — `InstagramAdapter.kt` is written and wired into
+`SyncWorker.kt`. Not yet exercised against a real connected account (that's the first real
+verification, same caveat as TikTok's adapter).
 
 | | |
 |---|---|
-| Account type required | Instagram **Professional** (Business/Creator) account. This system targets the Instagram-Login route specifically because our accounts have no linked Facebook Page — needs confirmation this route still exists as described. |
-| API product | "Instagram API with Instagram Login" (Meta's newer non-Facebook-Page route) — ❓ confirm current name/URL |
-| OAuth | Authorize: `instagram.com/oauth/authorize` · Token: `api.instagram.com/oauth/access_token` (short-lived) → exchange for long-lived via `graph.instagram.com/access_token?grant_type=ig_exchange_token` · No PKCE (Meta family) |
-| Scopes | `instagram_business_basic`, `instagram_business_manage_insights` — ❓ confirm exact current names |
-| List content | ❓ |
-| Content metrics | ❓ likely `views`/`reach`/`likes`/`comments`/`shares`/`saved`/`total_interactions` per media insights — varies by media type (photo/reel/carousel) |
-| Account metrics | ❓ profile views, reach, follower count |
-| Audience metrics | ❓ |
+| Account type required | Instagram **Professional** (Business/Creator) account. Confirmed: does **not** require a linked Facebook Page — "Instagram API with Instagram Login" is specifically the lighter path for accounts with no Page. |
+| API product | "Instagram API with Instagram Login" — confirmed current name/route. One Meta App can authorize multiple separate Instagram Business/Creator accounts (Standard Access is enough for accounts you own/manage as testers on the app; "Advanced Access" + App Review only needed to serve accounts you don't own). |
+| OAuth | Authorize: `https://www.instagram.com/oauth/authorize` · Token: `https://api.instagram.com/oauth/access_token` (short-lived, POST) → exchange for long-lived via `GET graph.instagram.com/access_token?grant_type=ig_exchange_token` · refresh via `GET graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` · No PKCE (Meta family). Auth passed as `access_token` query param on `graph.instagram.com` calls, not an Authorization header. |
+| Scopes | `instagram_business_basic` (required baseline), `instagram_business_manage_insights` (required for insights/metrics) — both confirmed current. (`instagram_business_content_publish`/`_manage_comments`/`_manage_messages` exist but are irrelevant to this read-only analytics tool.) |
+| List content | ✅ `GET /me/media?fields=id,media_type,media_product_type,media_url,permalink,thumbnail_url,caption,timestamp` — cursor-paginated via `paging.next` (full next-page URL, not just a token). |
+| Content metrics | ✅ `GET /{media-id}/insights?metric=...`, metric list depends on `media_product_type` (fetched first via a cheap `?fields=media_product_type` call): FEED/REELS get `views,likes,comments,shares,saved`; STORY gets only `views,shares` (no likes/comments/saved). Requesting an unsupported metric for a type fails the whole call, so the adapter never sends a uniform list. Response shape: `{"data":[{"name":"views","values":[{"value":150}]}, ...]}`. |
+| Account metrics | ✅ `GET /me?fields=followers_count,follows_count` |
+| Audience metrics | ❓ not implemented — not required for current spec |
 | New-content detection | Polling (no confirmed webhook for this use case) |
 | Token lifetime | Short-lived (~1h) → long-lived (~60d) → self-refresh via `refresh_access_token` |
-| Rate limits | ❓ |
-| Review requirements | Meta App Review + Business Verification likely required for `instagram_business_manage_insights` in production |
-| Known limitations | Metric availability varies significantly by media type and account size — never assume parity with Facebook Page insights |
-| Docs | developers.facebook.com (exact current URL not re-verified) |
-| Last verified | **Not verified this session** — flagged, not confirmed |
+| Rate limits | ❓ not re-verified this pass — not required to ship the adapter |
+| Review requirements | Standard Access (self-owned accounts added as app testers) needs no review. Advanced Access (accounts you don't own) requires App Review + likely Business Verification for `instagram_business_manage_insights`. |
+| Known limitations | Metric availability varies significantly by media type — never assume parity with Facebook Page insights. Redirect URI scheme (custom `com.puresquare.socialinsight://` vs HTTPS App Link) not confirmed by docs either way — first real OAuth test is the actual verification; see `PlatformOAuthConfig.kt`'s note. |
+| Docs | developers.facebook.com/docs/instagram-platform/overview, /docs/instagram-platform/instagram-api-with-instagram-login/business-login, /docs/instagram-platform/reference/oauth-authorize, /docs/instagram-platform/reference/instagram-media/insights |
+| Last verified | 2026-08-30 (live-fetched from official docs) |
 
 ## TikTok
 
