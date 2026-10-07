@@ -2,6 +2,10 @@ import type { PlatformName } from '@/types/database'
 
 export const ALL_PLATFORMS: PlatformName[] = ['instagram', 'tiktok', 'youtube', 'facebook', 'threads', 'x']
 
+// Platforms the sync pipeline can actually fetch (spec F11): anything else is hidden in the UI
+// unless an avatar already has a connection to it.
+export const SUPPORTED_PLATFORMS: PlatformName[] = ['instagram', 'tiktok', 'youtube']
+
 export const PLATFORM_DISPLAY_NAME: Record<PlatformName, string> = {
   instagram: 'Instagram',
   tiktok: 'TikTok',

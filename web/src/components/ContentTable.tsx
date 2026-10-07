@@ -3,7 +3,7 @@ import { PLATFORM_DISPLAY_NAME } from '@/lib/platforms'
 
 function fmtNumber(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—'
-  return new Intl.NumberFormat('en-US', { notation: n >= 10000 ? 'compact' : 'standard' }).format(n)
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
 }
 
 function fmtDuration(seconds: number | null | undefined): string {

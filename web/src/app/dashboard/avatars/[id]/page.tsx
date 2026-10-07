@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import type { Avatar, MetricSnapshot, PlatformConnectionSafe, PlatformContent, PlatformName } from '@/types/database'
 import { ContentTable } from '@/components/ContentTable'
 import { DeleteAvatarButton } from '@/components/DeleteAvatarButton'
-import { ALL_PLATFORMS, PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
+import { ALL_PLATFORMS, SUPPORTED_PLATFORMS, PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
+import { fmtInt } from '@/lib/format'
 import { latestFollowersByConnection } from '@/lib/followers'
 import { PERIOD_LABEL, periodCutoffMs, type Period } from '@/lib/insights'
 
@@ -104,7 +105,7 @@ export default async function AvatarDetailPage({
   // Always show every platform card, even while filtered — otherwise switching to another
   // connected platform means hitting "back" first, which defeats the point of the cards being
   // links in the first place.
-  const platformsToShow = ALL_PLATFORMS
+  const platformsToShow = ALL_PLATFORMS.filter((pl) => SUPPORTED_PLATFORMS.includes(pl) || connectionByPlatform.has(pl))
   const basePath = `/dashboard/avatars/${id}`
 
   function pageHref(overrides: { platform?: string | null; period?: string }) {
@@ -169,7 +170,7 @@ export default async function AvatarDetailPage({
                 return followers !== undefined ? (
                   <p className="mt-2 text-sm">
                     <span className="font-semibold tabular-nums text-neutral-100">
-                      {followers === null ? '—' : new Intl.NumberFormat('en-US', { notation: followers >= 10000 ? 'compact' : 'standard' }).format(followers)}
+                      {fmtInt(followers)}
                     </span>{' '}
                     <span className="text-xs text-neutral-500">{PLATFORM_FOLLOWER_LABEL[platform]}</span>
                   </p>

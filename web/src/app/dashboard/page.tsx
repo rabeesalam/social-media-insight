@@ -5,7 +5,7 @@ import { latestFollowersByConnection } from '@/lib/followers'
 import { PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
 
 function fmt(n: number): string {
-  return new Intl.NumberFormat('en-US', { notation: n >= 10000 ? 'compact' : 'standard' }).format(n)
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)
 }
 
 export default async function DashboardHomePage() {
