@@ -23,22 +23,30 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <header className="border-b border-neutral-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <nav className="flex items-center gap-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+          <nav className="flex min-w-0 items-center gap-5 overflow-x-auto whitespace-nowrap pr-4">
             <Link href="/dashboard" className="font-semibold">
               Social Analytics
             </Link>
-            <Link href="/dashboard" className="text-sm text-neutral-400 hover:text-neutral-100">
-              Avatars
-            </Link>
-            <Link href="/dashboard/insights" className="text-sm text-neutral-400 hover:text-neutral-100">
-              Insights
-            </Link>
-            <Link href="/dashboard/devices" className="text-sm text-neutral-400 hover:text-neutral-100">
-              Devices
-            </Link>
+            {[
+              ['/dashboard', 'Avatars'],
+              ['/dashboard/insights', 'Insights'],
+              ['/dashboard/trends', 'Trends'],
+              ['/dashboard/growth', 'Growth'],
+              ['/dashboard/engagement', 'Engagement'],
+              ['/dashboard/content', 'Content'],
+              ['/dashboard/compare', 'Compare'],
+              ['/dashboard/videos', 'Videos'],
+              ['/dashboard/digest', 'Digest'],
+              ['/dashboard/health', 'Health'],
+              ['/dashboard/devices', 'Devices'],
+            ].map(([href, label]) => (
+              <Link key={href} href={href} className="text-sm text-neutral-400 hover:text-neutral-100">
+                {label}
+              </Link>
+            ))}
           </nav>
-          <div className="flex items-center gap-3 text-sm text-neutral-400">
+          <div className="flex shrink-0 items-center gap-3 text-sm text-neutral-400">
             <span>
               {profile?.email} · <span className="uppercase">{profile?.role ?? 'viewer'}</span>
             </span>
@@ -50,7 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
     </div>
   )
 }

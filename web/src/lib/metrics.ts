@@ -37,6 +37,7 @@ export interface Video {
   connectionId: string
   avatarId: string
   title: string | null
+  caption: string | null
   url: string | null
   publishedAt: number | null
   snaps: Snap[] // ascending by time
@@ -53,6 +54,8 @@ export interface Connection {
   platform: PlatformName
   status: ConnectionStatus
   lastError: string | null
+  tokenExpiresAt: string | null
+  lastSyncAt: string | null
   snaps: AccountSnap[]
 }
 
@@ -73,8 +76,8 @@ export async function loadDataset(supabase: SupabaseClient): Promise<Dataset> {
     supabase.from('avatars').select('id, name').order('name').then(({ data }) => (data ?? []) as AvatarRef[]),
     supabase
       .from('platform_connections_safe')
-      .select('id, avatar_id, platform, status, last_error')
-      .then(({ data }) => (data ?? []) as { id: string; avatar_id: string; platform: PlatformName; status: ConnectionStatus; last_error: string | null }[]),
+      .select('id, avatar_id, platform, status, last_error, token_expires_at, last_sync_at')
+      .then(({ data }) => (data ?? []) as { id: string; avatar_id: string; platform: PlatformName; status: ConnectionStatus; last_error: string | null; token_expires_at: string | null; last_sync_at: string | null }[]),
     fetchAll<{ id: string; platform: PlatformName; platform_connection_id: string; published_at: string | null; title: string | null; caption: string | null; public_url: string | null }>(
       (from, to) => supabase.from('platform_content').select('id, platform, platform_connection_id, published_at, title, caption, public_url').order('id').range(from, to)
     ),
@@ -109,6 +112,7 @@ export async function loadDataset(supabase: SupabaseClient): Promise<Dataset> {
       connectionId: conn.id,
       avatarId: conn.avatar_id,
       title: c.title ?? c.caption,
+      caption: c.caption ?? c.title,
       url: c.public_url,
       publishedAt: c.published_at ? new Date(c.published_at).getTime() : null,
       snaps,
@@ -132,12 +136,14 @@ export async function loadDataset(supabase: SupabaseClient): Promise<Dataset> {
       platform: c.platform,
       status: c.status,
       lastError: c.last_error,
+      tokenExpiresAt: c.token_expires_at,
+      lastSyncAt: c.last_sync_at,
       snaps: (accSnapsByConn.get(c.id) ?? []).sort((a, b) => a.t - b.t),
     })),
   }
 }
 
-function lastAtOrBefore<T extends { t: number }>(snaps: T[], t: number): T | null {
+export function lastAtOrBefore<T extends { t: number }>(snaps: T[], t: number): T | null {
   let found: T | null = null
   for (const s of snaps) {
     if (s.t <= t) found = s
@@ -146,7 +152,7 @@ function lastAtOrBefore<T extends { t: number }>(snaps: T[], t: number): T | nul
   return found
 }
 
-type Counter = 'views' | 'likes' | 'comments' | 'shares' | 'saves'
+export type Counter = 'views' | 'likes' | 'comments' | 'shares' | 'saves'
 
 export interface Gain {
   value: number
@@ -154,38 +160,74 @@ export interface Gain {
   negative: boolean // platform removed views/likes; clamped to 0
 }
 
-function gainOf(v: Video, w: Window, field: Counter): Gain | null {
-  const end = lastAtOrBefore(v.snaps, w.endMs)
-  if (!end) return null
-  const endVal = end[field]
-  if (endVal === null) return null
+const STALE_MS = 36 * 60 * 60 * 1000
 
-  const base = lastAtOrBefore(v.snaps, w.startMs)
-  let baseVal: number | null
-  let partial = false
-  if (base) {
-    baseVal = base[field]
-    if (base === end) partial = true // no sync landed inside the window
-    // The baseline is much older than the window itself, so the gain also contains growth from
-    // before the window started (e.g. "today" measured from a snapshot taken last week).
-    else if (w.startMs - base.t > Math.max(24 * 60 * 60 * 1000, w.endMs - w.startMs)) partial = true
-  } else if (v.publishedAt !== null && v.publishedAt >= w.startMs) {
-    baseVal = 0 // posted inside the window: everything it has is gained in the window
-  } else {
-    const first = v.snaps.find((s) => s.t > w.startMs && s.t <= w.endMs)
-    baseVal = first ? first[field] : null
-    partial = true
-  }
-  if (baseVal === null) return null
-  const raw = endVal - baseVal
-  return { value: Math.max(0, raw), partial, negative: raw < 0 }
+export interface Interval {
+  a: number
+  b: number
+  gain: number // clamped to >= 0
+  neg: boolean // the platform lowered the count (removed fake views/likes)
 }
 
-function lifetimeAt(v: Video, t: number, field: Counter): number | null {
+const intervalCache = new WeakMap<Video, Map<Counter, Interval[]>>()
+
+// Consecutive snapshots form intervals; the gain of an interval is spread evenly over its duration,
+// so a period total is always the sum of the daily values inside it. The first interval runs from
+// publish time (value 0) to the first snapshot. Long intervals mean we did not sync in between,
+// so the day-level split inside them is an estimate.
+export function intervalsOf(v: Video, field: Counter): Interval[] {
+  let perField = intervalCache.get(v)
+  if (!perField) {
+    perField = new Map()
+    intervalCache.set(v, perField)
+  }
+  const cached = perField.get(field)
+  if (cached) return cached
+
+  const pts: { t: number; val: number }[] = []
+  for (const s of v.snaps) {
+    const val = s[field]
+    if (val !== null) pts.push({ t: s.t, val })
+  }
+  const out: Interval[] = []
+  if (pts.length > 0) {
+    if (v.publishedAt !== null && v.publishedAt < pts[0].t) pts.unshift({ t: v.publishedAt, val: 0 })
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]
+      const b = pts[i + 1]
+      if (b.t <= a.t) continue
+      const raw = b.val - a.val
+      out.push({ a: a.t, b: b.t, gain: Math.max(0, raw), neg: raw < 0 })
+    }
+  }
+  perField.set(field, out)
+  return out
+}
+
+export function gainOf(v: Video, w: Window, field: Counter): Gain | null {
+  const ivs = intervalsOf(v, field)
+  if (ivs.length === 0) return null
+  let sum = 0
+  let partial = false
+  let negative = false
+  for (const iv of ivs) {
+    const overlap = Math.min(iv.b, w.endMs) - Math.max(iv.a, w.startMs)
+    if (overlap <= 0) continue
+    sum += (iv.gain * overlap) / (iv.b - iv.a)
+    if (iv.b - iv.a > STALE_MS) partial = true
+    if (iv.neg) negative = true
+  }
+  // All-time is the lifetime total, so only a window with a real start can be "partial".
+  if (w.allTime) partial = false
+  else if (ivs[ivs.length - 1].b < w.endMs - STALE_MS) partial = true // no sync near the end
+  return { value: sum, partial, negative }
+}
+
+export function lifetimeAt(v: Video, t: number, field: Counter): number | null {
   return lastAtOrBefore(v.snaps, t)?.[field] ?? null
 }
 
-function median(nums: number[]): number | null {
+export function median(nums: number[]): number | null {
   if (nums.length === 0) return null
   const s = [...nums].sort((a, b) => a - b)
   const mid = Math.floor(s.length / 2)
@@ -247,6 +289,11 @@ export function computeTotals(videos: Video[], w: Window, hitThreshold: number):
       t.postedSaves += lifetimeAt(v, w.endMs, 'saves') ?? 0
     }
   }
+  t.viewsGained = Math.round(t.viewsGained)
+  t.likesGained = Math.round(t.likesGained)
+  t.commentsGained = Math.round(t.commentsGained)
+  t.sharesGained = Math.round(t.sharesGained)
+  t.savesGained = Math.round(t.savesGained)
   t.typicalViews = median(postedViewValues)
   t.hitRate = t.postedCount > 0 ? (t.hits / t.postedCount) * 100 : null
   return t
@@ -281,27 +328,52 @@ export interface FollowerStats {
   partial: boolean
 }
 
+// Value at time t: exact reading if we have one at/before t, linearly interpolated when the
+// neighbouring readings straddle t, and flagged partial when the neighbours are far apart.
+export function followersAt(snaps: AccountSnap[], t: number): { value: number; partial: boolean } | null {
+  let prev: AccountSnap | null = null
+  let next: AccountSnap | null = null
+  for (const s of snaps) {
+    if (s.followers === null) continue
+    if (s.t <= t) prev = s
+    else {
+      next = s
+      break
+    }
+  }
+  if (prev && next) {
+    const frac = (t - prev.t) / (next.t - prev.t)
+    const value = (prev.followers as number) + ((next.followers as number) - (prev.followers as number)) * frac
+    return { value, partial: next.t - prev.t > STALE_MS }
+  }
+  if (prev) return { value: prev.followers as number, partial: t - prev.t > STALE_MS }
+  if (next) return { value: next.followers as number, partial: true }
+  return null
+}
+
 export function followerStats(conns: Connection[], w: Window): FollowerStats {
   let current = 0
   let start = 0
   let any = false
   let partial = false
   for (const c of conns) {
-    const end = lastAtOrBefore(c.snaps, w.endMs)
-    if (!end || end.followers === null) continue
+    const end = followersAt(c.snaps, w.endMs)
+    if (!end) continue
     any = true
-    current += end.followers
-    const base = lastAtOrBefore(c.snaps, w.startMs)
-    if (base && base.followers !== null) {
-      start += base.followers
-      if (base === end) partial = true
+    current += end.value
+    const base = w.allTime ? null : followersAt(c.snaps, w.startMs)
+    if (base) {
+      start += base.value
+      if (base.partial || end.partial) partial = true
     } else {
-      const first = c.snaps.find((s) => s.t > w.startMs && s.t <= w.endMs)
-      start += first?.followers ?? end.followers
+      const first = c.snaps.find((x) => x.followers !== null)
+      start += first?.followers ?? end.value
       partial = true
     }
   }
   if (!any) return { current: null, gained: null, start: null, growthPct: null, partial: false }
+  current = Math.round(current)
+  start = Math.round(start)
   const gained = current - start
   return { current, gained, start, growthPct: start >= 100 ? (gained / start) * 100 : null, partial }
 }
@@ -357,4 +429,27 @@ export function staleConnections(ds: Dataset, nowMs: number, maxAgeMs = 24 * 60 
     else if (nowMs - lastSyncMs > maxAgeMs) out.push({ connection: c, avatarName: name, lastSyncMs, reason: 'stale' })
   }
   return out
+}
+
+// Cumulative count of a video at time t, linearly interpolated between snapshots (and from 0 at the
+// publish time). Returns null outside the range we actually have data for, so callers never invent
+// numbers before the first publish or after the last sync.
+export function cumulativeAt(v: Video, field: Counter, t: number, maxGapMs = Infinity): number | null {
+  const pts: { t: number; val: number }[] = []
+  for (const s of v.snaps) {
+    const val = s[field]
+    if (val !== null) pts.push({ t: s.t, val })
+  }
+  if (pts.length === 0) return null
+  if (v.publishedAt !== null && v.publishedAt < pts[0].t) pts.unshift({ t: v.publishedAt, val: 0 })
+  if (t < pts[0].t || t > pts[pts.length - 1].t) return null
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]
+    const b = pts[i + 1]
+    if (t >= a.t && t <= b.t) {
+      if (b.t - a.t > maxGapMs) return null // the sync gap is too long to trust an interpolated value
+      return b.t === a.t ? b.val : a.val + ((b.val - a.val) * (t - a.t)) / (b.t - a.t)
+    }
+  }
+  return pts[pts.length - 1].val
 }

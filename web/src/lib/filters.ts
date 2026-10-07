@@ -33,6 +33,40 @@ export const COMPARE_LABEL: Record<Compare, string> = {
 }
 
 export const DEFAULT_HIT_THRESHOLD = 10000
+export const DEFAULT_BREAKOUT_MULT = 3
+export const DEFAULT_BREAKOUT_FLOOR = 1000
+
+export const METRICS = ['views', 'likes', 'comments', 'shares', 'videos', 'followers', 'net_followers'] as const
+export type MetricKey = (typeof METRICS)[number]
+export const METRIC_LABEL: Record<MetricKey, string> = {
+  views: 'Views gained',
+  likes: 'Likes gained',
+  comments: 'Comments gained',
+  shares: 'Shares gained',
+  videos: 'Videos posted',
+  followers: 'Followers',
+  net_followers: 'Net followers per day',
+}
+
+export const SPLITS = ['avatar', 'platform', 'none'] as const
+export type Split = (typeof SPLITS)[number]
+export const SPLIT_LABEL: Record<Split, string> = { avatar: 'Avatar', platform: 'Platform', none: 'None (one total)' }
+
+export const GRANULARITIES = ['auto', 'daily', 'weekly', 'monthly'] as const
+export type Granularity = (typeof GRANULARITIES)[number]
+
+export const AGE_BUCKETS = ['all', 'u72h', '3to7d', '8to30d', 'o30d'] as const
+export type AgeBucket = (typeof AGE_BUCKETS)[number]
+export const AGE_LABEL: Record<AgeBucket, string> = {
+  all: 'All ages',
+  u72h: 'Under 72 h',
+  '3to7d': '3–7 days',
+  '8to30d': '8–30 days',
+  o30d: 'Over 30 days',
+}
+
+export const CHART_KINDS = ['line', 'area', 'bar'] as const
+export type ChartKind = (typeof CHART_KINDS)[number]
 
 export interface Filters {
   range: RangeKey
@@ -43,6 +77,20 @@ export interface Filters {
   avatars: string[] // empty = all
   platforms: PlatformName[] // empty = all
   hitThreshold: number
+  breakoutMult: number
+  breakoutFloor: number
+  metric: MetricKey
+  split: Split
+  granularity: Granularity
+  log: boolean
+  indexed: boolean
+  kind: ChartKind
+  age: AgeBucket
+  q: string
+  tag: string
+  xpost: boolean
+  noOutliers: boolean
+  projection: 0 | 7 | 30 | 90
 }
 
 type Raw = Record<string, string | string[] | undefined>
@@ -75,7 +123,26 @@ export function parseFilters(raw: Raw): Filters {
     avatars: list(raw.avatar),
     platforms: list(raw.platform).filter((p): p is PlatformName => ALL_PLATFORMS.includes(p as PlatformName)),
     hitThreshold: Number.isFinite(threshold) && threshold > 0 ? Math.floor(threshold) : DEFAULT_HIT_THRESHOLD,
+    breakoutMult: posNum(one(raw.mult), DEFAULT_BREAKOUT_MULT),
+    breakoutFloor: posNum(one(raw.floor), DEFAULT_BREAKOUT_FLOOR),
+    metric: METRICS.includes(one(raw.metric) as MetricKey) ? (one(raw.metric) as MetricKey) : 'views',
+    split: SPLITS.includes(one(raw.split) as Split) ? (one(raw.split) as Split) : 'avatar',
+    granularity: GRANULARITIES.includes(one(raw.gran) as Granularity) ? (one(raw.gran) as Granularity) : 'auto',
+    log: one(raw.scale) === 'log',
+    indexed: one(raw.norm) === 'indexed',
+    kind: CHART_KINDS.includes(one(raw.kind) as ChartKind) ? (one(raw.kind) as ChartKind) : 'line',
+    age: AGE_BUCKETS.includes(one(raw.age) as AgeBucket) ? (one(raw.age) as AgeBucket) : 'all',
+    q: (one(raw.q) ?? '').slice(0, 100),
+    tag: (one(raw.tag) ?? '').replace(/^#/, '').slice(0, 60),
+    xpost: one(raw.xpost) === '1',
+    noOutliers: one(raw.outliers) === '1',
+    projection: ([7, 30, 90] as const).find((n) => String(n) === one(raw.proj)) ?? 0,
   }
+}
+
+function posNum(v: string | undefined, fallback: number): number {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
 export function filtersToQuery(f: Filters): string {
@@ -90,12 +157,27 @@ export function filtersToQuery(f: Filters): string {
   if (f.avatars.length) q.set('avatar', f.avatars.join(','))
   if (f.platforms.length) q.set('platform', f.platforms.join(','))
   if (f.hitThreshold !== DEFAULT_HIT_THRESHOLD) q.set('hit', String(f.hitThreshold))
+  if (f.breakoutMult !== DEFAULT_BREAKOUT_MULT) q.set('mult', String(f.breakoutMult))
+  if (f.breakoutFloor !== DEFAULT_BREAKOUT_FLOOR) q.set('floor', String(f.breakoutFloor))
+  if (f.metric !== 'views') q.set('metric', f.metric)
+  if (f.split !== 'avatar') q.set('split', f.split)
+  if (f.granularity !== 'auto') q.set('gran', f.granularity)
+  if (f.log) q.set('scale', 'log')
+  if (f.indexed) q.set('norm', 'indexed')
+  if (f.kind !== 'line') q.set('kind', f.kind)
+  if (f.age !== 'all') q.set('age', f.age)
+  if (f.q) q.set('q', f.q)
+  if (f.tag) q.set('tag', f.tag)
+  if (f.xpost) q.set('xpost', '1')
+  if (f.noOutliers) q.set('outliers', '1')
+  if (f.projection) q.set('proj', String(f.projection))
   return q.toString()
 }
 
 export interface Window {
   startMs: number
   endMs: number
+  allTime?: boolean // lifetime totals: gains are exact, nothing is "before the window"
 }
 
 export interface ResolvedRange {
@@ -104,29 +186,44 @@ export interface ResolvedRange {
   label: string
 }
 
-function tzOffsetMs(ms: number, tz: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-  }).formatToParts(new Date(ms))
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>()
+const offsetMemo = new Map<string, number>()
+
+// Offset of `tz` from UTC at instant `ms`. Building an Intl.DateTimeFormat is slow, so the formatter is
+// cached and results are memoised per hour (offsets only change at DST transitions).
+export function tzOffsetMs(ms: number, tz: string): number {
+  const memoKey = `${tz}|${Math.floor(ms / 3600000)}`
+  const hit = offsetMemo.get(memoKey)
+  if (hit !== undefined) return hit
+  let fmt = offsetFormatters.get(tz)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    })
+    offsetFormatters.set(tz, fmt)
+  }
+  const parts = fmt.formatToParts(new Date(ms))
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value)
   const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
-  return asUtc - Math.floor(ms / 1000) * 1000
+  const offset = asUtc - Math.floor(ms / 1000) * 1000
+  offsetMemo.set(memoKey, offset)
+  return offset
 }
 
 // Midnight (in the reporting zone) at the start of the given calendar date.
-function zonedMidnightMs(y: number, m: number, d: number): number {
+export function zonedMidnightMs(y: number, m: number, d: number): number {
   const guess = Date.UTC(y, m - 1, d)
   return guess - tzOffsetMs(guess, REPORTING_TZ)
 }
 
-function zonedYMD(ms: number): { y: number; m: number; d: number } {
+export function zonedYMD(ms: number): { y: number; m: number; d: number } {
   const shifted = new Date(ms + tzOffsetMs(ms, REPORTING_TZ))
   return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth() + 1, d: shifted.getUTCDate() }
 }
@@ -136,7 +233,7 @@ export function nowMs(): number {
   return Date.now()
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+export const DAY_MS = 24 * 60 * 60 * 1000
 
 function shiftMonthBack(ms: number): number {
   const d = new Date(ms)
@@ -181,7 +278,7 @@ export function resolveRange(f: Filters, nowMs: number): ResolvedRange {
   }
   if (endMs <= startMs) endMs = startMs + 1
 
-  const current = { startMs, endMs }
+  const current: Window = { startMs, endMs, ...(f.range === 'all' ? { allTime: true } : {}) }
   let previous: Window | null = null
   if (f.range !== 'all' && f.compare !== 'none') {
     if (f.compare === 'last_month') {

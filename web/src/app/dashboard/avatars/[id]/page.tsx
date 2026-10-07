@@ -6,6 +6,9 @@ import { ContentTable } from '@/components/ContentTable'
 import { DeleteAvatarButton } from '@/components/DeleteAvatarButton'
 import { ALL_PLATFORMS, SUPPORTED_PLATFORMS, PLATFORM_DISPLAY_NAME, PLATFORM_FOLLOWER_LABEL } from '@/lib/platforms'
 import { fmtInt } from '@/lib/format'
+import { loadDataset } from '@/lib/metrics'
+import { nowMs, parseFilters } from '@/lib/filters'
+import { buildVideoRows, type VideoRow } from '@/lib/videos'
 import { latestFollowersByConnection } from '@/lib/followers'
 import { PERIOD_LABEL, periodCutoffMs, type Period } from '@/lib/insights'
 
@@ -92,6 +95,17 @@ export default async function AvatarDetailPage({
   }
 
   const periodCutoff = periodCutoffMs(period)
+
+  // Growth columns for the table (views gained, velocity, badges, sparkline) from saved snapshots.
+  let extras: Map<string, VideoRow> | undefined
+  try {
+    const ds = await loadDataset(supabase)
+    const now = nowMs()
+    const rows = buildVideoRows(ds.videos.filter((v) => v.avatarId === id), { startMs: periodCutoff ?? 0, endMs: now }, parseFilters({}), now)
+    extras = new Map(rows.map((r) => [r.video.id, r]))
+  } catch {
+    extras = undefined
+  }
 
   const filteredContent = content.filter((item) => {
     if (platformFilter && item.platform !== platformFilter) return false
@@ -200,7 +214,7 @@ export default async function AvatarDetailPage({
           ))}
         </div>
       </div>
-      <ContentTable content={filteredContent} latestByContentId={latestByContentId} />
+      <ContentTable content={filteredContent} latestByContentId={latestByContentId} extras={extras} />
     </div>
   )
 }

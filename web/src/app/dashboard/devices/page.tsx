@@ -1,38 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Device } from '@/types/database'
 import { nowMs } from '@/lib/filters'
-
-type EffectiveStatus = Device['status'] | 'idle'
-
-const STATUS_DOT: Record<EffectiveStatus, string> = {
-  online: 'bg-green-500',
-  syncing: 'bg-blue-500',
-  idle: 'bg-amber-500',
-  offline: 'bg-neutral-500',
-  error: 'bg-red-500',
-  disabled: 'bg-neutral-700',
-}
-
-// The stored status is whatever the phone last reported, so a phone that stopped checking in stays
-// "online" forever. Derive it from last_seen_at instead: online < 15 min, idle < 24 h, else offline.
-function effectiveStatus(device: Device, nowMs: number): EffectiveStatus {
-  if (device.status === 'disabled' || device.status === 'error') return device.status
-  if (!device.last_seen_at) return 'offline'
-  const age = nowMs - new Date(device.last_seen_at).getTime()
-  if (age < 15 * 60 * 1000) return device.status === 'syncing' ? 'syncing' : 'online'
-  if (age < 24 * 60 * 60 * 1000) return 'idle'
-  return 'offline'
-}
-
-function timeAgo(iso: string | null) {
-  if (!iso) return 'never'
-  const diffMs = nowMs() - new Date(iso).getTime()
-  const diffSec = Math.max(0, Math.floor(diffMs / 1000))
-  if (diffSec < 60) return `${diffSec}s ago`
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
-  return `${Math.floor(diffSec / 86400)}d ago`
-}
+import { STATUS_DOT, duplicateIds, effectiveStatus, timeAgo } from '@/lib/devices'
 
 export default async function DevicesPage() {
   const supabase = await createClient()
@@ -52,9 +21,13 @@ export default async function DevicesPage() {
     )
   }
 
+  const now = nowMs()
+  const dupes = duplicateIds(devices ?? [])
+
   return (
     <div>
-      <h1 className="mb-6 text-lg font-semibold">Devices</h1>
+      <h1 className="mb-1 text-lg font-semibold">Devices</h1>
+      <p className="mb-6 text-sm text-neutral-500">Status comes from last seen: online under 15 minutes, idle under 24 hours, offline after that.</p>
       {!devices || devices.length === 0 ? (
         <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-400">
           No devices registered yet — install the Android app and open it to register the first one.
@@ -74,24 +47,25 @@ export default async function DevicesPage() {
             </thead>
             <tbody className="divide-y divide-neutral-800">
               {devices.map((device) => {
-                const status = effectiveStatus(device, nowMs())
+                const status = effectiveStatus(device, now)
                 return (
-                <tr key={device.id}>
-                  <td className="px-4 py-3 text-neutral-100">
-                    {device.device_name}
-                    <div className="text-xs text-neutral-500">{device.device_model}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
-                      {status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-neutral-400">{device.app_version_name ?? '—'}</td>
-                  <td className="px-4 py-3 text-neutral-400">{device.android_version ?? '—'}</td>
-                  <td className="px-4 py-3 text-neutral-400">{timeAgo(device.last_seen_at)}</td>
-                  <td className="px-4 py-3 text-neutral-400">{timeAgo(device.last_sync_at)}</td>
-                </tr>
+                  <tr key={device.id}>
+                    <td className="px-4 py-3 text-neutral-100">
+                      {device.device_name}
+                      {dupes.has(device.id) && <span className="ml-2 rounded-full border border-amber-800 px-1.5 text-[10px] text-amber-300">duplicate?</span>}
+                      <div className="text-xs text-neutral-500">{device.device_model}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
+                        {status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-neutral-400">{device.app_version_name ?? '—'}</td>
+                    <td className="px-4 py-3 text-neutral-400">{device.android_version ?? '—'}</td>
+                    <td className="px-4 py-3 text-neutral-400">{timeAgo(device.last_seen_at, now)}</td>
+                    <td className="px-4 py-3 text-neutral-400">{timeAgo(device.last_sync_at, now)}</td>
+                  </tr>
                 )
               })}
             </tbody>
